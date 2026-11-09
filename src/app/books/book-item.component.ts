@@ -31,6 +31,12 @@ import { Book } from './book';
           </p>
           <p *ngIf="book.isbn" class="text-xs text-gray-500 mt-2">ISBN: {{ book.isbn }}</p>
         </div>
+        <a
+          [routerLink]="['/books', book.id]"
+          [attr.aria-label]="'View details for ' + book.title"
+          class="mt-4 inline-block text-blue-700 underline rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700"
+          >View details</a
+        >
       </div>
     </div>
   `

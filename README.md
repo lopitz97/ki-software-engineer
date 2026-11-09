@@ -12,6 +12,10 @@
   <br>
 </p>
 
+## Architecture
+
+BookMonkey is a standalone Angular application organized around a books feature, with component-local state and a dedicated HTTP API client. See [ARCHITECTURE.md](ARCHITECTURE.md) for the project structure, routing, data flow, styling, testing setup, and guidance for new developers.
+
 ## Local Development
 
 | Command       | Description                                      |
