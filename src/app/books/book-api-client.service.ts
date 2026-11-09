@@ -1,11 +1,12 @@
 import { HttpClient, HttpErrorResponse, HttpParams } from '@angular/common/http';
-import { Injectable } from '@angular/core';
+import { inject, Injectable } from '@angular/core';
 import { map, Observable } from 'rxjs';
+import { BOOK_API_BASE_URL } from './book-api-url';
 import { Book } from './book';
 
 @Injectable({ providedIn: 'root' })
 export class BookApiClient {
-  private readonly apiUrl = 'http://localhost:4730/books';
+  private readonly apiUrl = `${inject(BOOK_API_BASE_URL).replace(/\/$/, '')}/books`;
 
   constructor(private http: HttpClient) {}
 
@@ -27,7 +28,7 @@ export class BookApiClient {
     let params = new HttpParams().set('_limit', pageSize.toString());
 
     if (searchTerm) {
-      // Search in title and author fields
+      // Search semantics are defined by the backend.
       params = params.set('q', searchTerm);
     }
 

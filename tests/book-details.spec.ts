@@ -1,39 +1,5 @@
-import { expect, Page, test } from '@playwright/test';
-import { Book } from '../src/app/books/book';
-
-const appUrl = 'http://localhost:4200';
-const apiUrl = 'http://localhost:4730/books';
-const coverUrl = 'http://localhost:4730/covers/test.png';
-const book = {
-  id: 'book-1',
-  isbn: '9781234567890',
-  title: 'A Book to Remember',
-  subtitle: 'Stories for everyone',
-  author: 'Ada Reader',
-  publisher: 'Example Press',
-  numPages: 321,
-  price: '19.95',
-  cover: coverUrl,
-  abstract: 'First paragraph.\nSecond paragraph with <b>literal markup</b>.',
-  userId: 42
-};
-
-test.beforeEach(async ({ page }) => {
-  await page.route('https://fonts.googleapis.com/**', route => route.fulfill({ contentType: 'text/css', body: '' }));
-});
-
-async function mockBooks(page: Page, selectedBook: Book = book): Promise<void> {
-  await page.route(/^http:\/\/localhost:4730\/books(?:\?|$)/, async route => {
-    const id = new URL(route.request().url()).searchParams.get('id');
-    await route.fulfill({ json: !id || id === selectedBook.id ? [selectedBook] : [] });
-  });
-  await page.route(coverUrl, route =>
-    route.fulfill({
-      contentType: 'image/svg+xml',
-      body: '<svg xmlns="http://www.w3.org/2000/svg" width="300" height="400"><rect width="300" height="400" fill="#dbeafe"/></svg>'
-    })
-  );
-}
+import { expect, test } from '@playwright/test';
+import { apiUrl, appUrl, book, coverUrl, mockBooks } from './support/books';
 
 test('opens details using the keyboard and returns to the collection', async ({ page }) => {
   await mockBooks(page);

@@ -2,9 +2,7 @@
 
 ## Project at a glance
 
-BookMonkey is a small Angular workshop application for browsing and searching a book collection. This repository contains a single Angular application, not a multi-project workspace. The backend is the separately started Bookmonkey API; its implementation is not part of this repository.
-
-The current architecture is deliberately small: an application shell hosts a routed feature, a container component owns screen state, a presentation component renders each book, and an injectable API client handles HTTP access. There are no NgModules, global state store, or additional application layers in the current source.
+BookMonkey is a single Angular 20 standalone browser application for an Angular workshop. The Bookmonkey API runs separately and is not implemented in this repository. State stays local to each screen; there is no global store, cache, SSR, or repository/facade layer.
 
 ## Repository map
 
@@ -13,140 +11,134 @@ src/
   main.ts                         Browser bootstrap
   index.html                      Host document
   styles.css                      Tailwind entry point
-  material-theme.scss             Material snack-bar style overrides
+  environments/
+    environment.ts                Production API base URL
+    environment.development.ts    Local development API base URL
   app/
-    app.ts / app.html / app.css    Root shell: header, router outlet, footer
-    app.config.ts                 Application-wide providers
-    app.routes.ts                 Route definitions
-    books/                        Book feature: UI, model, and data access
-      book.ts
-      book-api-client.service.ts
-      book-list.component.ts
-      book-item.component.ts
-      book-details.component.ts
-    shared/
-      toast.service.ts            Reusable notification service
-public/                           Static files copied into the build
+    app.ts / app.html / app.css    Persistent header, router outlet, footer
+    app.config.ts                 Router, HTTP, API URL, error and Zone.js providers
+    app.routes.ts                 Collection, detail, wildcard routes
+    books/
+      book.ts                     API response interface
+      book-api-url.ts             API base URL injection token
+      book-api-client.service.ts  HTTP requests and response selection
+      book-list.component.ts      Collection state and search events
+      book-list.component.html    Search, loading, error/retry, results, empty state
+      book-item.component.ts      Book card and detail link
+      book-cover.component.ts     Cover image and missing/failed-image fallback
+      book-details.component.ts   Route-driven detail state and retry
+      book-details.component.html Detail states and metadata
+public/                           Static build assets
 docs/                             README artwork
-tests/                            Playwright starter tests
-tests-examples/                   Additional Playwright demo tests
-angular.json                      Build, development server, and test targets
-playwright.config.ts              Browser test configuration
-tsconfig*.json                    Application and test TypeScript settings
+tests/
+  book-details.spec.ts            Details browser regression suite
+  book-list.spec.ts               Collection browser regression suite
+  support/books.ts                Shared fixtures, URLs, API and cover mocks
+tests-examples/                   TodoMVC demo, outside the default test directory
+angular.json                      Browser build and development server
+playwright.config.ts              Browser projects, baseURL, server startup
+tsconfig*.json                    Strict application TypeScript settings
 ```
 
-## Bootstrap, dependency injection, and routing
+## Bootstrap, providers, and routing
 
-[src/main.ts](src/main.ts) calls `bootstrapApplication(App, appConfig)`. Components use standalone imports; the root `App` relies on Angular's standalone default, while the book components explicitly declare `standalone: true`.
+[src/main.ts](src/main.ts) calls `bootstrapApplication(App, appConfig)`. Components are standalone with explicit template dependencies. [app.config.ts](src/app/app.config.ts) provides the router, HTTP client, API base URL, browser global error listeners, and Zone.js change detection with event coalescing.
 
-[app.config.ts](src/app/app.config.ts) registers the router, `HttpClient`, animations, browser global error listeners, and Zone.js change detection with event coalescing. Both application services use `providedIn: 'root'`, so their scope is the application injector.
+[app.routes.ts](src/app/app.routes.ts) maps `/` to the collection and `/books/:id` to details, with the wildcard redirect last. Screens are imported eagerly. Details support direct links and refresh without requiring a loaded collection. The root App owns only persistent layout and its router outlet.
 
-The root shell contains a `RouterOutlet`. [app.routes.ts](src/app/app.routes.ts) maps the empty path to `BookListComponent` and `/books/:id` to `BookDetailsComponent`, before redirecting unknown paths to the collection. Both screens are imported eagerly; there are no lazy routes, guards, resolvers, or edit routes. Book cards link to details using the book's ID, and details support direct navigation and refresh.
+Unused NgRx, Angular Query, SSR, Express, Material, CDK, and animation dependencies were removed from the direct package declarations. The unused toast service and Material theme were removed together. Some packages, such as Express, may still appear as transitive development-tool dependencies.
 
-Although `@angular/ssr`, `@angular/platform-server`, and Express are dependencies, the configured build has only a browser entry point. There is no server entry point or SSR/hydration setup in the current source.
+## Component responsibilities
 
-## Components and service boundaries
+| Element              | Responsibility                                                         |
+| -------------------- | ---------------------------------------------------------------------- |
+| App                  | Persistent layout and router outlet                                    |
+| BookListComponent    | Local query events and loading/success/error state                     |
+| BookItemComponent    | Presentation of a required book input and a detail link; no HTTP       |
+| BookCoverComponent   | Required URL/alternative-text inputs, image failure state and fallback |
+| BookDetailsComponent | Route ID and retry events, loading/success/not-found/error state       |
+| BookApiClient        | API URLs, query parameters, HTTP requests, exact-ID result selection   |
+| Book                 | Compile-time representation of the API response                        |
 
-| Element             | Responsibility                                                                           | Dependencies                                           |
-| ------------------- | ---------------------------------------------------------------------------------------- | ------------------------------------------------------ |
-| `App`               | Persistent page layout and routed content                                                | Angular router                                         |
-| `BookListComponent` | Load books, manage search/loading state, render the collection and empty state           | `BookApiClient`, forms, `BookItemComponent`            |
-| `BookItemComponent` | Render a single book's cover, title, subtitle, author, and ISBN through its `book` input | `Book` model; no API calls                             |
-| `BookApiClient`     | Build query parameters and fetch typed book arrays                                       | Angular `HttpClient`                                   |
-| `BookDetailsComponent` | Load one book by route ID and render metadata, cover, loading, not-found, error, and retry states | `BookApiClient`, Angular router, async pipe |
-| `Book`              | Describe the API response shape                                                          | TypeScript interface only                              |
-| `ToastService`      | Wrap Material `MatSnackBar` with a `show()` method                                       | Angular Material; currently unused by the book feature |
+Book-specific behavior stays inside `books/`. Shared layers or state libraries should be added only when a concrete feature requires them.
 
-The `books/` directory groups the model, data access, and components by feature. `shared/` currently contains only the notification service. There is no separate `core/` layer, repository abstraction, or facade between the list and API client.
-
-## Runtime data flow and state
+## Collection data flow and state
 
 ```mermaid
 flowchart TD
-    Bootstrap[main.ts + appConfig] --> App[App shell / RouterOutlet]
-    App --> List[BookListComponent]
-    Search[Search input / ngModel] -->|300 ms debounce| List
-    List -->|getBooks: pageSize, searchTerm| Client[BookApiClient]
-    Client -->|HTTP GET /books| API[External Bookmonkey API :4730]
-    API -->|Book array| Client
-    Client -->|Observable subscription| List
-    List -->|book input per item| Item[BookItemComponent]
+    Input[Search input / ngModel] --> Events[Initial / query / clear / retry events]
+    Events --> Switch[Outer switchMap cancels previous delay and request]
+    Switch --> Delay[Typed query: 300 ms; initial / clear / retry: immediate]
+    Delay --> Client[BookApiClient.getBooks]
+    Client --> API[External Bookmonkey API]
+    API --> State[Loading / success / error state]
+    State --> Async[Single async-pipe subscription]
+    Async --> Cards[Book cards and shared covers]
 ```
 
-On initialization, the list requests books with its `pageSize` input, which defaults to 10. Search uses template-driven forms (`ngModel`) and a 300 ms `setTimeout` debounce before making another request. Clearing the search triggers an immediate unfiltered request. Items are tracked by `book.id` when rendering the list.
+The list loads immediately using the API client's default limit of 10. The old public `pageSize` input had no callers and was removed instead of exposing a setting that did not reload on changes.
 
-State consists of ordinary component fields: `books`, `loading`, `searchTerm`, and the debounce timer. The list subscribes directly to the API client's RxJS observable and updates these fields. Search state is not stored in the URL or persisted across reloads. There is no client-side cache or shared state store. NgRx Signals, the NgRx toolkit, and Angular Query are installed but are not used or configured in the application source.
+The draft `searchTerm` is separate from the query captured in each state. Every change immediately enters an outer `switchMap`, cancelling both a pending RxJS timer and an in-flight request. Nonempty typed queries wait 300 ms; clearing, initial loading, and retry request immediately. Consecutive identical queries are suppressed, while explicit retries bypass that suppression.
 
-The details component combines route-ID changes and retry actions into a component-local state observable. `switchMap` cancels superseded HTTP requests and immediately clears old content with a loading state. The template's async pipe owns subscription cleanup when navigating away. Missing results and HTTP 404 responses show a not-found state; other failures offer retry. Every state includes a link back to `/`; returning to the collection resets its search. Covers have a placeholder for missing URLs and load failures. Abstracts use text interpolation with preserved line breaks, and prices display as supplied without inferred currency formatting. The app-shell brand is a paragraph so each screen supplies the single page heading.
+Every accepted event first emits loading and removes previous results. Only successful empty arrays show an empty message. Failures show an inline alert and retry for the failed query. Error handling stays inside the request branch, allowing later input to recover. A single async pipe owns the entire stream and disposes its timer and HTTP subscription when the screen is destroyed.
 
-## Backend boundary
+Items are tracked by ID. Search input has a label, interactive controls have visible focus styling, and loading/empty states expose status semantics. Search is not stored in the URL or persisted; returning from details resets the collection.
 
-[BookApiClient](src/app/books/book-api-client.service.ts) hard-codes `http://localhost:4730/books` and exposes `getBooks(pageSize, searchTerm?)` and `getBook(id): Observable<Book>`:
+## Details and cover state
+
+Details combine route-ID changes and retry events using `switchMap`. Superseded requests are cancelled, loading clears stale content immediately, and the single async pipe handles subscription cleanup. Empty matches and HTTP 404 responses produce not-found; other failures offer retry. Every state offers back-navigation.
+
+Both screens use [BookCoverComponent](src/app/books/book-cover.component.ts). It renders a placeholder for missing or failed images and resets failure state when its URL input changes. The details loading branch destroys its success view, so subsequent success creates a fresh cover. Request pipelines do not manage cover flags.
+
+Abstracts render through text interpolation with preserved line breaks. Prices retain the API's string value without an inferred currency. Each screen supplies its own single page heading; the app-shell brand is a paragraph.
+
+## Backend boundary and deployment configuration
+
+[BookApiClient](src/app/books/book-api-client.service.ts) injects [BOOK_API_BASE_URL](src/app/books/book-api-url.ts), strips a trailing slash, and appends `/books`. Its methods are `getBooks(pageSize = 10, searchTerm?)` and `getBook(id): Observable<Book>`:
 
 ```text
-GET /books?_limit=10
-GET /books?_limit=10&q=<search term>
-GET /books?id=<encoded book ID>
+GET <base>/books?_limit=10
+GET <base>/books?_limit=10&q=<search term>
+GET <base>/books?id=<encoded book ID>
 ```
 
-The running API's single-resource endpoint `/books/:isbn` accepts ISBN rather than the model's ID. `getBook` therefore uses the verified ID-filtered collection endpoint; `HttpParams` encodes the ID. It selects the matching book from the returned array and raises an HTTP 404 error if none exists. The page route remains `/books/:id`.
+[app.config.ts](src/app/app.config.ts) supplies the token from the selected environment. Development replaces [environment.ts](src/environments/environment.ts) with [environment.development.ts](src/environments/environment.development.ts), using `http://localhost:4730`. Production defaults to same-origin `/api`, so the deployment must reverse-proxy `/api/books` to the external backend's `/books`, stripping the `/api` prefix, or change the production base URL before building. This repository does not provide that reverse proxy. For a cross-origin URL, the backend must allow the frontend origin through CORS. There is no authentication or interceptor.
 
-`_limit` controls the result count; there is no page number, offset, or pagination UI. The API receives the `q` parameter and determines search semantics; the frontend does not filter results locally.
+The backend's single-resource `/books/:isbn` endpoint accepts ISBN rather than the model's ID. Detail lookup intentionally requests the ID-filtered collection, selects the exact ID match, and raises an HTTP 404 error when absent. `HttpParams` encodes query values. The frontend route remains `/books/:id`.
 
-[Book](src/app/books/book.ts) represents the response directly, including metadata such as `id`, `isbn`, `title`, `author`, `publisher`, `numPages`, `price`, `cover`, `abstract`, and `userId`; `subtitle` is optional. `price` is a string. The HTTP generic supplies compile-time typing, with no runtime validation or mapping layer.
+`_limit` controls result count; there is no pagination UI or offset. The backend determines `q` search semantics. [Book](src/app/books/book.ts) represents the response directly, including string IDs and prices, an optional subtitle, and numeric page counts/user IDs. HTTP generics provide compile-time typing, not runtime validation.
 
-There is no environment-specific API configuration, development proxy, authentication, or HTTP interceptor. The browser calls the backend directly, so the API must be reachable and allow requests from the frontend origin. A deployment must replace or configure the localhost endpoint for its environment.
+## Styling, build, and tests
 
-## UI and styling
+Tailwind CSS 4 supplies application styling through [src/styles.css](src/styles.css) and `.postcssrc.json`. The root, collection, and details use external templates; the smaller card and cover use inline templates. Material styles and unused Google Fonts links are no longer loaded. Builds do not need to fetch those stylesheets.
 
-Tailwind CSS 4 supplies the utility classes used throughout the templates. [src/styles.css](src/styles.css) imports Tailwind, and `.postcssrc.json` configures its PostCSS plugin. The book components use inline templates; the root shell has separate HTML and CSS files.
+The declared toolchain is Angular 20.2, TypeScript 5.9, and RxJS 7.8. [tsconfig.json](tsconfig.json) preserves strict TypeScript and template checks. Production builds use bundle budgets and output hashing; development enables source maps and disables optimization. Public assets are copied to the output. There is no CI pipeline in the repository.
 
-Angular Material is currently used by `ToastService`. [src/material-theme.scss](src/material-theme.scss) defines a snack-bar container color override and is included globally alongside `styles.css` in the build. `provideAnimations()` is registered in the application config.
+| Command                                | Purpose                                        |
+| -------------------------------------- | ---------------------------------------------- |
+| `npm install`                          | Install dependencies                           |
+| `npm start`                            | Serve development frontend at localhost:4200   |
+| `npx bookmonkey-api`                   | Run the separate backend at localhost:4730     |
+| `npm run build`                        | Production build using the /api endpoint       |
+| `npm run watch`                        | Development build in watch mode                |
+| `npx playwright install`               | Install Chromium, Firefox, and WebKit binaries |
+| `npm test` or `npm run test:e2e`       | Run application browser regression suites      |
+| `npm test -- --project=chromium`       | Run only Chromium                              |
+| `npx prettier --check <changed-files>` | Check explicit changed paths                   |
 
-## Build and testing
+Playwright starts a dedicated frontend server at localhost:4202 and supplies a baseURL. It refuses to reuse an existing server so stale application code cannot silently pass the suite. API and cover requests are mocked before navigation; tests do not require the live backend or external websites. Shared fixtures/mocks live in `tests/support/books.ts`. The external Playwright starter suite was removed; the TodoMVC demo remains outside the configured `tests/` directory.
 
-The declared toolchain is Angular 20.2, TypeScript 5.9, and RxJS 7.8. TypeScript strict mode and Angular strict template checks are enabled in [tsconfig.json](tsconfig.json).
+The collection suite covers failure/retry/recovery, successful empty states, keyboard names and focus, debounce/clear behavior, immediate request cancellation, stale results, destruction cleanup, and cover fallbacks. Controlled response promises and Playwright's browser clock avoid fixed sleeps. Details coverage retains direct links/refresh, metadata, literal text, missing content, broken covers, loading, not-found, retry, encoded IDs, route cancellation, and mobile/desktop layout.
 
-| Command               | Purpose and current configuration                                                                 |
-| --------------------- | ------------------------------------------------------------------------------------------------- |
-| `npm install`         | Install dependencies                                                                              |
-| `npx bookmonkey-api`  | Start the separate API at `http://localhost:4730`; endpoint documentation is available there      |
-| `npm start`           | Serve the frontend at `http://localhost:4200` using the development configuration                 |
-| `npm run build`       | Build with the production configuration by default                                                |
-| `npm run watch`       | Rebuild using the development configuration                                                       |
-| `npm test`            | Invoke the configured Karma target; see the unit-test gap below                                   |
-| `npx playwright test` | Run tests from `tests/` across Chromium, Firefox, and WebKit; requires installed browser binaries |
+For production-configuration coverage, set `BOOKMONKEY_TEST_PRODUCTION=1` before running Playwright. The server uses the production configuration at localhost:4201, and mocks target same-origin `/api/books`. This checks both collection and detail URL construction against the alternate configured provider without a live reverse proxy. Unset the variable afterward. See README for PowerShell commands.
 
-The Angular application builder uses production bundle budgets and output hashing. Development builds disable optimization and enable source maps. Files in `public/` are copied as static assets. There is no CI pipeline configuration in the repository.
+The incomplete Karma target and Jasmine tsconfig were removed. `npm test` now runs actual browser coverage; no Angular unit-test runner is configured.
 
-Browser coverage for the details feature lives in `tests/book-details.spec.ts`:
+## Current limits and extension points
 
-- Tests mock API and cover responses, so the backend does not need to run. They cover keyboard navigation, direct URLs and refresh, displayed metadata, literal abstract text, missing content, cover failures, loading, not-found responses, errors and retry, encoded IDs, and mobile/desktop layout.
-- Run `npx playwright test tests/book-details.spec.ts` after installing the configured browser binaries with `npx playwright install`. The existing example suites described below remain scaffolding.
+- Search state resets on navigation; there is no shared cache or persisted query.
+- API data is trusted at runtime. Introduce boundary validation only if the external contract requires it.
+- There are no create, edit, delete, authentication, or pagination workflows.
+- Mocked tests verify frontend behavior and configured URLs, not a live backend or production reverse proxy.
 
-- No Angular unit test files exist under `src/`. A Karma target and Jasmine type reference are configured, but Karma/Jasmine test dependencies are absent from the declared dev dependencies; the unit-test setup needs completing before use.
-- Playwright starts or reuses the Angular development server, but the current `tests/example.spec.ts` visits `playwright.dev` and does not exercise BookMonkey. No `baseURL` is configured, and the API is not started by Playwright.
-- `tests-examples/` contains a TodoMVC demo suite outside the configured Playwright `testDir`, so it is not included in the default run.
-
-## Current limitations to understand before extending the app
-
-- Failed book requests are logged to the console and clear the loading flag. There is no visible error state or retry action; existing books remain after a failed refresh, and an initial failure can appear as an empty collection. The global error listener does not replace feature-level error handling.
-- Debouncing limits request frequency, but in-flight searches are not cancelled. Responses can arrive out of order and overwrite newer results. The pending debounce timer is not cleaned up on destruction or cancelled by `clearSearch()`.
-- The feature has no create, update, or delete workflow. Installed packages should not be treated as evidence that those capabilities or advanced state management already exist.
-
-## Where to make changes
-
-Start reading with `main.ts`, `app.config.ts`, and `app.routes.ts`, then follow the list component into the API client and item component.
-
-| Change                                                   | Starting point                                             |
-| -------------------------------------------------------- | ---------------------------------------------------------- |
-| Page layout or branding                                  | `src/app/app.html`                                         |
-| Search, loading, or collection behavior                  | `src/app/books/book-list.component.ts`                     |
-| Individual book presentation                             | `src/app/books/book-item.component.ts`                     |
-| API URL, query parameters, or additional HTTP operations | `src/app/books/book-api-client.service.ts`                 |
-| API data shape                                           | `src/app/books/book.ts`                                    |
-| Navigation or a new screen                               | `src/app/app.routes.ts` and the relevant feature directory |
-| App-wide providers                                       | `src/app/app.config.ts`                                    |
-| Shared notifications                                     | `src/app/shared/toast.service.ts`                          |
-
-When extending the application, keep book-specific behavior inside `books/`, HTTP details in the API client, and item rendering separate from fetching and screen state. Introduce additional layers or shared state when a concrete feature needs them. Add BookMonkey-specific tests alongside new behavior; the existing browser examples do not provide regression coverage for this application.
+Start with `main.ts`, `app.config.ts`, and `app.routes.ts`, then follow each screen into the API client and presentation components. Keep HTTP details in the client and screen state local. Update this guide when changing routes, responsibilities, state, API contracts, or test setup.
