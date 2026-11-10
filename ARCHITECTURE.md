@@ -2,7 +2,7 @@
 
 ## Project at a glance
 
-BookMonkey is a single Angular 20 standalone browser application for an Angular workshop. The Bookmonkey API runs separately and is not implemented in this repository. State stays local to each screen; there is no global store, cache, SSR, or repository/facade layer.
+BookMonkey is a single Angular 20 standalone browser application for an Angular workshop. The Bookmonkey API runs separately and is not implemented in this repository. Book state stays local to each screen; the persistent header owns the app-wide theme preference. There is no global store, cache, SSR, or repository/facade layer.
 
 ## Repository map
 
@@ -18,6 +18,7 @@ src/
     app.ts / app.html / app.css    Persistent header, router outlet, footer
     app.config.ts                 Router, HTTP, API URL, error and Zone.js providers
     app.routes.ts                 Collection, detail, wildcard routes
+    theme-control.component.ts    System/light/dark preference and document theme
     books/
       book.ts                     API response interface
       book-api-url.ts             API base URL injection token
@@ -33,6 +34,7 @@ docs/                             README artwork
 tests/
   book-details.spec.ts            Details browser regression suite
   book-list.spec.ts               Collection browser regression suite
+  theme.spec.ts                   Theme behavior, persistence, and keyboard coverage
   support/books.ts                Shared fixtures, URLs, API and cover mocks
 tests-examples/                   TodoMVC demo, outside the default test directory
 angular.json                      Browser build and development server
@@ -50,15 +52,16 @@ Unused NgRx, Angular Query, SSR, Express, Material, CDK, and animation dependenc
 
 ## Component responsibilities
 
-| Element              | Responsibility                                                         |
-| -------------------- | ---------------------------------------------------------------------- |
-| App                  | Persistent layout and router outlet                                    |
-| BookListComponent    | Local query events and loading/success/error state                     |
-| BookItemComponent    | Presentation of a required book input and a detail link; no HTTP       |
-| BookCoverComponent   | Required URL/alternative-text inputs, image failure state and fallback |
-| BookDetailsComponent | Route ID and retry events, loading/success/not-found/error state       |
-| BookApiClient        | API URLs, query parameters, HTTP requests, exact-ID result selection   |
-| Book                 | Compile-time representation of the API response                        |
+| Element               | Responsibility                                                          |
+| --------------------- | ----------------------------------------------------------------------- |
+| App                   | Persistent layout and router outlet                                     |
+| ThemeControlComponent | Header selection, saved preference, device changes, document appearance |
+| BookListComponent     | Local query events and loading/success/error state                      |
+| BookItemComponent     | Presentation of a required book input and a detail link; no HTTP        |
+| BookCoverComponent    | Required URL/alternative-text inputs, image failure state and fallback  |
+| BookDetailsComponent  | Route ID and retry events, loading/success/not-found/error state        |
+| BookApiClient         | API URLs, query parameters, HTTP requests, exact-ID result selection    |
+| Book                  | Compile-time representation of the API response                         |
 
 Book-specific behavior stays inside `books/`. Shared layers or state libraries should be added only when a concrete feature requires them.
 
@@ -112,6 +115,10 @@ The backend's single-resource `/books/:isbn` endpoint accepts ISBN rather than t
 
 Tailwind CSS 4 supplies application styling through [src/styles.css](src/styles.css) and `.postcssrc.json`. The root, collection, and details use external templates; the smaller card and cover use inline templates. Material styles and unused Google Fonts links are no longer loaded. Builds do not need to fetch those stylesheets.
 
+[ThemeControlComponent](src/app/theme-control.component.ts) provides a labeled native System / Light / Dark selector in the persistent header. System is the default and follows `prefers-color-scheme`, including changes while the app is open. Manual choices override device changes. The selected preference is saved as `bookmonkey-theme` in browser `localStorage`; missing, invalid, or inaccessible saved values fall back to System. If storage writes are blocked, selection still works for the current session. The device listener is removed when the component is destroyed.
+
+The component applies the resolved `dark` class and native `color-scheme` to the document root. Tailwind's custom `dark` variant follows that class, allowing a manual light override even when the device is dark. Root colors and dark utilities cover the header, footer, collection, detail cards, covers, controls, and loading/empty/error states. Theme state requires no backend changes or shared state library.
+
 The declared toolchain is Angular 20.2, TypeScript 5.9, and RxJS 7.8. [tsconfig.json](tsconfig.json) preserves strict TypeScript and template checks. Production builds use bundle budgets and output hashing; development enables source maps and disables optimization. Public assets are copied to the output. There is no CI pipeline in the repository.
 
 | Command                                | Purpose                                        |
@@ -129,6 +136,8 @@ The declared toolchain is Angular 20.2, TypeScript 5.9, and RxJS 7.8. [tsconfig.
 Playwright starts a dedicated frontend server at localhost:4202 and supplies a baseURL. It refuses to reuse an existing server so stale application code cannot silently pass the suite. API and cover requests are mocked before navigation; tests do not require the live backend or external websites. Shared fixtures/mocks live in `tests/support/books.ts`. The external Playwright starter suite was removed; the TodoMVC demo remains outside the configured `tests/` directory.
 
 The collection suite covers failure/retry/recovery, successful empty states, keyboard names and focus, debounce/clear behavior, immediate request cancellation, stale results, destruction cleanup, and cover fallbacks. Controlled response promises and Playwright's browser clock avoid fixed sleeps. Details coverage retains direct links/refresh, metadata, literal text, missing content, broken covers, loading, not-found, retry, encoded IDs, route cancellation, and mobile/desktop layout.
+
+The theme suite covers both device appearances, live device changes, manual overrides, returning to System, persistence across refresh and a new browser context restored from real saved storage, keyboard selection, and dark loading/empty/error states on both routes. It checks rendered backgrounds rather than relying on a particular CSS class. These automated checks do not constitute a complete visual contrast audit.
 
 For production-configuration coverage, set `BOOKMONKEY_TEST_PRODUCTION=1` before running Playwright. The server uses the production configuration at localhost:4201, and mocks target same-origin `/api/books`. This checks both collection and detail URL construction against the alternate configured provider without a live reverse proxy. Unset the variable afterward. See README for PowerShell commands.
 
