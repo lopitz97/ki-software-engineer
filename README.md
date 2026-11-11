@@ -40,7 +40,7 @@ try { npm.cmd test -- --project=chromium } finally { Remove-Item Env:BOOKMONKEY_
 
 The [issue-analysis workflow](.github/workflows/issue-analysis.yml) analyzes new or edited issues and human issue comments using `clarify-feature`. It maintains one analysis comment, identified by a hidden marker and author, and adds suitable labels, creating reusable labels when needed. Bot and pull-request comments are excluded. Existing labels are preserved except for `ready-for-implementation`: the skill sets it only after requirements are clear and the analysis comment is verified, and removes it if later discussion introduces material uncertainty.
 
-Both workflows must be on the default branch. They use the OpenAI API key currently stored in `ANTHROPIC_API_KEY`; despite the secret's name, its value must be an OpenAI API key. They configure a dedicated temporary Codex home and permission profile, use `drop-sudo`, and authenticate GitHub CLI through `GH_TOKEN` with the built-in GitHub token. No personal access token is required.
+The issue workflows must be on the default branch. The Codex workflows use the OpenAI API key currently stored in `ANTHROPIC_API_KEY`; despite the secret's name, its value must be an OpenAI API key. They configure a dedicated temporary Codex home and permission profile, use `drop-sudo`, and authenticate GitHub CLI through `GH_TOKEN` with the built-in GitHub token. No personal access token is required for reading issues or posting comments.
 
 ## Automatic issue implementation
 
@@ -51,6 +51,10 @@ The workflow prepares `feature/{number}-{sanitized-title}` and uses two jobs wit
 Only a verified Red result starts the Green job. It checks out the exact starting commit and restores the tests, requirements mapping, and failure evidence from the Red artifact. `ci-se-green` implements and commits those tests and production changes without executing tests, builds, or linters itself. Subsequent CI steps run the production build, all Playwright projects, changed-file formatting, and `git diff --check`. The jobs use separate runners because the Codex Action's `drop-sudo` strategy cannot run twice in one Linux job. The Red network profile allows GitHub and loopback targets for focused browser tests.
 
 The workflow uploads Red diagnostics and an implementation patch as artifacts retained for seven days. It currently does not push a branch or create a PR, merge, deploy, or close the issue. Existing remote feature branches are reused without force or reset. Open questions in the issue must still be answered before tests can define the intended behavior; assigning `ready-for-implementation` alone does not establish those answers.
+
+## Pull request review
+
+The [PR-review workflow](.github/workflows/pr-review.yml) runs on `pull_request: opened` and `synchronize` for branches in this repository. It uses the same Codex Action setup as issue analysis, with `pull-requests: write` to post feedback. Codex reviews the exact PR head, reads the diff and applicable `AGENTS.md` instructions, and comments on code quality, bugs, performance, security, and test coverage. The review is static; it does not run PR code, change source files, approve, or merge. A newer push cancels an older review run. Fork and Dependabot PRs are skipped because this workflow requires the repository API-key secret and comment write access.
 
 ## API configuration and deployment
 
