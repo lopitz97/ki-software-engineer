@@ -139,8 +139,8 @@ Do not use `--force`, which could overwrite an existing label. Verify creation b
 returns an already-exists conflict or an uncertain result, refresh the catalog and reuse a matching existing label; do not
 overwrite it or create a spelling variant to bypass the conflict. Report permission failures without repeatedly retrying.
 
-Preserve existing labels. Add only selected labels that are missing from the issue; do not rename, delete, or remove labels
-as part of this assessment.
+Preserve existing labels except for the readiness label managed below. Add only selected labels that are missing from the
+issue; do not rename, delete, or remove other labels as part of this assessment.
 
 For CLI writes, use `gh issue edit NUMBER --repo OWNER/REPO --add-label LABEL` with exact verified label names, quoting
 each argument appropriately. Repeated `--add-label` options can add several labels without replacing the current set.
@@ -149,6 +149,24 @@ current labels before retrying. If labeling fails, preserve the analysis and rep
 publication. Briefly state the selected labels and reasons in the analysis, and distinguish newly created repository labels
 from issue label additions in the final handoff. Never claim a label was created or added when it was only recommended or
 already present. If creation succeeds but assignment fails, report those outcomes separately.
+
+### Readiness for automatic implementation
+
+`ready-for-implementation` is the workflow handoff label, not a general enhancement label. Add it only for an open issue
+whose goal, scope, constraints, user story, and observable acceptance criteria are clear enough to implement and test,
+with no material unanswered question, unresolved contradiction, or requirement based solely on an unconfirmed assumption.
+The analysis must account for the latest relevant human comments. A passing build or implemented code is not a prerequisite.
+
+State the readiness decision and reason in the maintained analysis. Publish and verify that analysis before adding the
+label; if publication fails, do not add it. Reuse the exact name `ready-for-implementation`; if absent, create it with the
+description "Requirements clarified; ready for automatic implementation" and color `0E8A16`. Then add and verify it.
+This label authorizes the implementation workflow to prepare code and a draft PR; never assign it speculatively.
+
+If a later assessment finds material open questions, a scope contradiction, or a closed issue, remove only this readiness
+label when present and explain why. This is the sole exception to preserving existing labels. In draft/read-only mode,
+recommend the readiness change without applying it. Do not dispatch workflows yourself: the implementation workflow
+listens only for the issues:labeled event for this exact label. Setting a label and triggering another workflow are
+separate GitHub capabilities; the caller is responsible for providing credentials that can emit that event.
 
 ## Clarify interactively
 

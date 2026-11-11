@@ -62,7 +62,9 @@ jobs:
             Read the issue title, body, and relevant comments using GitHub CLI.
             After assessment, inspect the repository label catalog and current issue labels.
             Reuse suitable existing labels; create missing labels when needed according to the skill.
-            Preserve all current labels and verify label creation and assignment.
+            Preserve current labels except for readiness changes required by the skill, and verify the result.
+            Manage ready-for-implementation according to the skill's readiness criteria. This label starts automation.
+            Publish and verify the maintained analysis before adding the readiness label.
             Maintain one analysis comment on the identified issue, using the skill's stable marker and author checks.
             Update an existing matching comment by ID; create a marked comment only when no suitable one exists.
             Follow the skill's legacy-comment migration and UTF-8 file instructions; never use --edit-last.
