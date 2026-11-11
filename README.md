@@ -36,6 +36,10 @@ $env:BOOKMONKEY_TEST_PRODUCTION = '1'
 try { npm.cmd test -- --project=chromium } finally { Remove-Item Env:BOOKMONKEY_TEST_PRODUCTION }
 ```
 
+## Issue analysis automation
+
+The [issue-analysis workflow](.github/workflows/issue-analysis.yml) analyzes new or edited issues and human issue comments. It runs `clarify-feature` with Codex, which reads the issue context and posts clarification questions or the requirements story directly as a comment. Bot comments and pull-request comments are excluded. The workflow must be on the default branch and requires the `OPENAI_API_KEY` secret. It creates a dedicated Codex home under the runner's temporary directory with a `github-issues` permission profile extending `:workspace` and allowing network access to `api.github.com`. GitHub CLI uses the built-in GitHub token through `GH_TOKEN` with `issues: write`; a personal access token is not required.
+
 ## API configuration and deployment
 
 Development uses `http://localhost:4730` from [environment.development.ts](src/environments/environment.development.ts). Production uses same-origin `/api` from [environment.ts](src/environments/environment.ts), supplied through the `BOOK_API_BASE_URL` injection token. Configure the production base URL before building, or provide a reverse proxy that maps `/api/books` to the backend's `/books` and strips the `/api` prefix. This repository does not implement that proxy. Cross-origin deployments require backend CORS configuration.

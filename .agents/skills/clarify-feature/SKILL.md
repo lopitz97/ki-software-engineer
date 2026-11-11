@@ -53,6 +53,27 @@ Use these topics to find meaningful gaps, not as a questionnaire every feature m
 quality target only when it changes the intended behavior or how success will be verified. Avoid inventing numeric targets,
 business rules, or architectural restrictions.
 
+## GitHub Actions mode
+
+When the caller identifies a GitHub Actions run, prepare one self-contained Markdown analysis or clarification response.
+Use a supplied issue snapshot when available; otherwise read the issue and relevant comments through GitHub. Reuse previous
+answers. Do not wait for interactive input or invoke a question tool in this mode: the next human comment can trigger a new
+analysis with updated context.
+
+If material questions remain, summarize the established goal and ask the one to three most consequential unresolved
+questions in the final response. Clearly distinguish open decisions from agreed requirements. If requirements are clear,
+return the story using the structure below. Match the language of the issue and relevant user clarifications.
+
+By default, return the prepared response for the workflow to publish. If the caller explicitly requests direct comment
+publication, publish that response as one comment on the identified issue using the available authenticated GitHub tool.
+For GitHub CLI, write the exact Markdown to a temporary UTF-8 file and use
+`gh issue comment NUMBER --repo OWNER/REPO --body-file PATH` with the resolved values. Verify the published comment and return
+its URL; if a write result is uncertain, read the issue comments before retrying to avoid duplicates. If publication fails,
+return the prepared response with the specific blocker rather than claiming success.
+
+Do not edit or close the issue or implement the feature. In an interactive session, follow the clarification workflow below
+instead.
+
 ## Clarify interactively
 
 Ask the most consequential unanswered questions first. Prefer a small round, usually one to three related questions, with
