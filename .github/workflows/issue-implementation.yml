@@ -111,8 +111,9 @@ jobs:
             Do not implement production code, commit, push, delete existing tests, or weaken existing expectations.
 
             Write the acceptance-to-test mapping, actual commands, results, and any blockers to tmp/issue-red-report.md.
-            Also write tmp/issue-red-status.json with status (red, already-satisfied, or blocked), testFiles (an array
-            of relevant tests/*.spec.ts paths, including nested paths), and reason (a brief evidence-based explanation).
+            Also write tmp/issue-red-status.json with status (red, already-satisfied, or blocked), testFiles (only executable
+            tests/*.spec.ts paths, including nested paths), fixtureFiles (helper/fixture paths under tests/, or []),
+            and reason (a brief evidence-based explanation). Do not put helpers such as tests/support/books.ts in testFiles.
             Use red only after verifying a failure caused by missing required behavior. Setup, import, browser,
             compilation, or network failures are blocked. Use already-satisfied only when the mapped requirements
             already pass, never manufacture failures. CI independently captures the failure output for ci-se-green.
@@ -140,10 +141,25 @@ jobs:
           if (git(['diff', '--diff-filter=D', '--name-only', process.env.BASE_SHA])) {
             throw new Error('Red phase deleted tests.');
           }
-          const files = report.testFiles;
-          if (!Array.isArray(files) || !files.length || files.some(file =>
-            typeof file !== 'string' || !/^tests\/(?:[a-zA-Z0-9_-]+\/)*[a-zA-Z0-9_.-]+\.spec\.ts$/.test(file) ||
-            !fs.existsSync(file))) throw new Error('Missing or invalid test file mapping.');
+          const mappedFiles = report.testFiles;
+          const fixtureFiles = report.fixtureFiles ?? [];
+          if (!Array.isArray(mappedFiles) || !mappedFiles.length || !Array.isArray(fixtureFiles)) {
+            throw new Error('testFiles must be a non-empty array; fixtureFiles must be an array when supplied.');
+          }
+          for (const file of [...mappedFiles, ...fixtureFiles]) {
+            if (typeof file !== 'string' || !/^tests\/(?:[a-zA-Z0-9_-]+\/)*[a-zA-Z0-9_.-]+$/.test(file)) {
+              throw new Error(`Invalid test/fixture path: ${JSON.stringify(file)}. Expected a path under tests/.`);
+            }
+            if (!fs.existsSync(file) || !fs.statSync(file).isFile()) {
+              throw new Error(`Mapped test/fixture file does not exist: ${file}`);
+            }
+          }
+          const files = [...new Set(mappedFiles.filter(file => file.endsWith('.spec.ts')))];
+          if (!files.length) throw new Error('testFiles contains no executable *.spec.ts files.');
+          const legacyHelpers = mappedFiles.filter(file => !file.endsWith('.spec.ts'));
+          if (legacyHelpers.length) {
+            console.log(`Treating helper files as fixtures, not Playwright test targets: ${legacyHelpers.join(', ')}`);
+          }
           const result = spawnSync(process.execPath, [
             'node_modules/@playwright/test/cli.js', 'test', ...files,
             '--project=chromium', '--reporter=line,json', '--retries=0'
