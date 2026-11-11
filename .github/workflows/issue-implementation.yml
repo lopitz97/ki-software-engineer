@@ -5,7 +5,7 @@ on:
     types: [labeled]
 
 jobs:
-  prepare-implementation:
+  prepare-tests:
     if: github.event.label.name == 'ready-for-implementation'
     runs-on: ubuntu-latest
     timeout-minutes: 15
@@ -13,6 +13,10 @@ jobs:
       contents: write
       issues: write
       pull-requests: write
+    outputs:
+      branch_name: ${{ steps.prepare-branch.outputs.branch_name }}
+      base_sha: ${{ steps.prepare-branch.outputs.base_sha }}
+      red_state: ${{ steps.red.outputs.state }}
 
     steps:
       - name: Checkout repository
@@ -41,6 +45,8 @@ jobs:
 
           [permissions.github-issues.network.domains]
           "api.github.com" = "allow"
+          "localhost" = "allow"
+          "127.0.0.1" = "allow"
           EOF
 
       - name: Prepare Feature Branch
@@ -63,6 +69,182 @@ jobs:
             git switch --create "$BRANCH_NAME" "origin/$BASE_BRANCH"
           fi
           printf 'branch_name=%s\n' "$BRANCH_NAME" >> "$GITHUB_OUTPUT"
+          printf 'base_sha=%s\n' "$(git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install test dependencies
+        run: |
+          npm ci
+          npx playwright install --with-deps
+          mkdir -p tmp
+
+      - name: Write requirements tests with Codex
+        uses: openai/codex-action@v1
+        env:
+          GH_TOKEN: ${{ github.token }}
+        with:
+          openai-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
+          codex-home: ${{ runner.temp }}/codex-home
+          permission-profile: github-issues
+          safety-strategy: drop-sudo
+          model: 'gpt-5.6-luna'
+          prompt: |
+            $issue-to-tests
+
+            Context:
+            - REPO: ${{ github.repository }}
+            - ISSUE_NUMBER: ${{ github.event.issue.number }}
+            - BRANCH: ${{ steps.prepare-branch.outputs.branch_name }}
+
+            Read the live issue and relevant human clarifications before writing tests. Verify it is open and still
+            ready-for-implementation. The maintained analysis is context, not a substitute for missing human decisions.
+            Do not invent API contracts, validation rules, or product behavior. If requirements remain ambiguous,
+            report the blocking questions instead of waiting for interactive input in CI.
+
+            Follow issue-to-tests: change only tests and test fixtures under tests/, run focused Chromium tests,
+            and verify that failures demonstrate missing required behavior. Dependencies and browsers are installed.
+            Do not implement production code, commit, push, delete existing tests, or weaken existing expectations.
+
+            Write the acceptance-to-test mapping, actual commands, results, and any blockers to tmp/issue-red-report.md.
+            Also write tmp/issue-red-status.json with status (red, already-satisfied, or blocked), testFiles (an array
+            of relevant tests/*.spec.ts paths, including nested paths), and reason (a brief evidence-based explanation).
+            Use red only after verifying a failure caused by missing required behavior. Setup, import, browser,
+            compilation, or network failures are blocked. Use already-satisfied only when the mapped requirements
+            already pass, never manufacture failures. CI independently captures the failure output for ci-se-green.
+
+      - name: Verify red phase and capture failures
+        id: red
+        env:
+          BASE_SHA: ${{ steps.prepare-branch.outputs.base_sha }}
+          PLAYWRIGHT_JSON_OUTPUT_NAME: tmp/issue-red-results.json
+        run: |
+          node <<'NODE'
+          const fs = require('node:fs');
+          const { execFileSync, spawnSync } = require('node:child_process');
+          const report = JSON.parse(fs.readFileSync('tmp/issue-red-status.json', 'utf8'));
+          if (!report.reason?.trim()) throw new Error('Missing red-phase explanation.');
+          if (report.status === 'blocked') throw new Error(`Red phase blocked: ${report.reason}`);
+          if (!['red', 'already-satisfied'].includes(report.status)) throw new Error('Invalid red-phase status.');
+          const git = args => execFileSync('git', args, { encoding: 'utf8' }).trim();
+          if (git(['rev-parse', 'HEAD']) !== process.env.BASE_SHA) throw new Error('Red phase must not commit.');
+          const changes = [
+            ...git(['diff', '--name-only', process.env.BASE_SHA]).split('\n'),
+            ...git(['ls-files', '--others', '--exclude-standard']).split('\n')
+          ].filter(Boolean);
+          if (changes.some(file => !file.startsWith('tests/'))) throw new Error('Red phase changed non-test files.');
+          if (git(['diff', '--diff-filter=D', '--name-only', process.env.BASE_SHA])) {
+            throw new Error('Red phase deleted tests.');
+          }
+          const files = report.testFiles;
+          if (!Array.isArray(files) || !files.length || files.some(file =>
+            typeof file !== 'string' || !/^tests\/(?:[a-zA-Z0-9_-]+\/)*[a-zA-Z0-9_.-]+\.spec\.ts$/.test(file) ||
+            !fs.existsSync(file))) throw new Error('Missing or invalid test file mapping.');
+          const result = spawnSync(process.execPath, [
+            'node_modules/@playwright/test/cli.js', 'test', ...files,
+            '--project=chromium', '--reporter=line,json', '--retries=0'
+          ], { encoding: 'utf8', maxBuffer: 20 * 1024 * 1024 });
+          const log = (result.stdout || '') + (result.stderr || '');
+          fs.writeFileSync('tmp/issue-red-failures.log', log);
+          console.log(log);
+          if (result.error || result.signal || result.status === null) throw new Error('Test execution failed.');
+          const results = JSON.parse(fs.readFileSync('tmp/issue-red-results.json', 'utf8'));
+          if (results.errors?.length || !results.stats || results.stats.skipped || results.stats.flaky) {
+            throw new Error('Setup errors, skipped tests, or flaky tests do not establish a valid red phase.');
+          }
+          if (report.status === 'already-satisfied') {
+            if (result.status !== 0 || !results.stats.expected || results.stats.unexpected) {
+              throw new Error('Already-satisfied assessment was not confirmed by CI.');
+            }
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'state=already-satisfied\n');
+            console.log('Mapped requirements already pass; Green will be skipped.');
+          } else {
+            if (result.status !== 1 || !results.stats.unexpected) throw new Error('CI did not confirm failing tests.');
+            fs.appendFileSync(process.env.GITHUB_OUTPUT, 'state=verified-red\n');
+          }
+          NODE
+
+      - name: Package verified tests
+        if: steps.red.outputs.state == 'verified-red'
+        run: tar -czf tmp/issue-red-tests.tar.gz tests
+
+      - name: Upload red-phase handoff
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-${{ github.event.issue.number }}-red
+          path: |
+            tmp/issue-red-report.md
+            tmp/issue-red-status.json
+            tmp/issue-red-failures.log
+            tmp/issue-red-results.json
+            tmp/issue-red-tests.tar.gz
+          retention-days: 7
+
+  prepare-implementation:
+    needs: prepare-tests
+    if: needs.prepare-tests.outputs.red_state == 'verified-red'
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    permissions:
+      contents: write
+      issues: write
+      pull-requests: write
+    steps:
+      - name: Checkout tested revision
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ needs.prepare-tests.outputs.base_sha }}
+          fetch-depth: 0
+
+      - name: Prepare Feature Branch
+        env:
+          BRANCH_NAME: ${{ needs.prepare-tests.outputs.branch_name }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git switch --create "$BRANCH_NAME"
+
+      - name: Download verified tests and failure evidence
+        uses: actions/download-artifact@v4
+        with:
+          name: issue-${{ github.event.issue.number }}-red
+          path: tmp/issue-red
+
+      - name: Restore verified tests
+        run: tar -xzf tmp/issue-red/issue-red-tests.tar.gz
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+
+      - name: Install test dependencies
+        run: |
+          npm ci
+          npx playwright install --with-deps
+
+      - name: Configure Codex
+        run: |
+          mkdir -p "$RUNNER_TEMP/codex-home"
+          cat > "$RUNNER_TEMP/codex-home/config.toml" <<'EOF'
+          default_permissions = "github-issues"
+          [features]
+          network_proxy = true
+          [permissions.github-issues]
+          extends = ":workspace"
+          [permissions.github-issues.filesystem.":workspace_roots"]
+          ".git" = "write"
+          [permissions.github-issues.network]
+          enabled = true
+          [permissions.github-issues.network.domains]
+          "api.github.com" = "allow"
+          EOF
 
       - name: Implement Issue with Codex
         uses: openai/codex-action@v1
@@ -80,9 +262,39 @@ jobs:
             Context:
             - REPO: ${{ github.repository }}
             - ISSUE_NUMBER: ${{ github.event.issue.number }}
-            - BRANCH: ${{ steps.prepare-branch.outputs.branch_name }}
+            - BRANCH: ${{ needs.prepare-tests.outputs.branch_name }}
+            - FAILURE_OUTPUT: tmp/issue-red/issue-red-failures.log
+            - TEST_RESULTS: tmp/issue-red/issue-red-results.json
+            - REQUIREMENTS_MAPPING: tmp/issue-red/issue-red-report.md
 
-            Use these resolved context values; expressions inside SKILL.md are placeholders.
-            Before implementing, verify that the current branch starts with feature/ followed by this issue number
-            and a hyphen. If the feature branch has not been prepared, stop and report that prerequisite.
-            Do not implement or commit on the default branch.
+            Use these resolved values; expressions inside SKILL.md are placeholders. The current feature branch contains
+            the tests verified against the exact same starting revision in the Red job. Preserve those tests.
+            Read the live issue and relevant human clarifications. Confirm the issue is open and ready and requirements
+            have not materially changed since the Red report. Stop and report unresolved requirements or invalid evidence.
+            Implement and commit the tests and production changes on this feature branch. Do not push or create a PR.
+            Do not run tests, builds, Playwright, or linters: the following CI step performs validation.
+
+      - name: Validate implementation in CI
+        env:
+          BASE_SHA: ${{ needs.prepare-tests.outputs.base_sha }}
+        run: |
+          npm run build
+          npm test -- --reporter=line
+          git diff --check "$BASE_SHA" HEAD
+          git diff --name-only -z --diff-filter=ACMR "$BASE_SHA" HEAD |
+            xargs -0 -r npx prettier --check --ignore-unknown
+          test -z "$(git status --porcelain)"
+
+      - name: Save implementation patch
+        if: always()
+        env:
+          BASE_SHA: ${{ needs.prepare-tests.outputs.base_sha }}
+        run: git diff --binary "$BASE_SHA" > tmp/issue-implementation.patch
+
+      - name: Upload implementation patch
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: issue-${{ github.event.issue.number }}-implementation
+          path: tmp/issue-implementation.patch
+          retention-days: 7
