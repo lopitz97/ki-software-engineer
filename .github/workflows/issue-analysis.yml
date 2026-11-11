@@ -63,8 +63,9 @@ jobs:
             After assessment, inspect the repository label catalog and current issue labels.
             Reuse suitable existing labels; create missing labels when needed according to the skill.
             Preserve all current labels and verify label creation and assignment.
-            Publish the analysis or unresolved clarification questions as one comment on the identified issue.
-            Write the complete Markdown comment to a temporary UTF-8 file and use gh issue comment with --body-file.
+            Maintain one analysis comment on the identified issue, using the skill's stable marker and author checks.
+            Update an existing matching comment by ID; create a marked comment only when no suitable one exists.
+            Follow the skill's legacy-comment migration and UTF-8 file instructions; never use --edit-last.
             Verify publication and return the comment URL, newly created labels, and verified label additions.
             Do not edit the issue body or state, and do not implement the feature.
 

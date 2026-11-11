@@ -65,14 +65,38 @@ questions in the final response. Clearly distinguish open decisions from agreed 
 return the story using the structure below. Match the language of the issue and relevant user clarifications.
 
 By default, return the prepared response for the workflow to publish. If the caller explicitly requests direct comment
-publication, publish that response as one comment on the identified issue using the available authenticated GitHub tool.
-For GitHub CLI, write the exact Markdown to a temporary UTF-8 file and use
-`gh issue comment NUMBER --repo OWNER/REPO --body-file PATH` with the resolved values. Verify the published comment and return
-its URL; if a write result is uncertain, read the issue comments before retrying to avoid duplicates. If publication fails,
-return the prepared response with the specific blocker rather than claiming success.
+publication, maintain one analysis comment on the identified issue using the procedure below. If publication fails, return
+the prepared response with the specific blocker rather than claiming success.
 
 After assessing the issue, assign suitable labels as described below. Do not change the issue title, body, or state or
 implement the feature. In an interactive session, follow the clarification workflow below instead.
+
+## Maintain the analysis comment
+
+Include the stable hidden marker `<!-- clarify-feature:analysis -->` in the published Markdown. Before writing, read all
+issue comments, including further pages, and find a comment with this marker authored by the publishing account (normally
+`github-actions[bot]` in this workflow). Never select a comment merely because it is the latest comment or was written by
+some bot, and never edit another author's comment.
+
+Update the matching comment by its exact ID instead of creating a new one. If several owned marked comments already
+exist, update the most recently updated one without deleting the others. For older runs without the marker, reuse an
+owned comment only when its content clearly identifies it as this skill's previous issue analysis and there is exactly
+one such candidate; add the marker during that update. Preserve unrelated bot comments. If no marked match or unambiguous
+legacy analysis exists, create the first marked analysis comment.
+
+For GitHub CLI, list comments with
+`gh api --paginate 'repos/OWNER/REPO/issues/NUMBER/comments?per_page=100'`. To update a selected comment, serialize the
+complete marked Markdown as a JSON object's `body` into a temporary UTF-8 file, then use
+`gh api --method PATCH repos/OWNER/REPO/issues/comments/COMMENT_ID --input JSON_PATH`. To create a comment, write the marked
+Markdown to a temporary UTF-8 file and use `gh issue comment NUMBER --repo OWNER/REPO --body-file MARKDOWN_PATH`. Substitute
+the resolved identifiers and quote arguments appropriately; do not interpolate comment text into shell commands.
+Do not use `--edit-last`, which could modify an unrelated comment by the same account.
+
+Refresh the target immediately before updating. If its marked body already matches the prepared response, skip the write.
+If an update fails, report the failure rather than creating a replacement comment. After any timeout or uncertain write
+result, read comments again before retrying so an already successful creation is reused. Verify the final comment body
+and return its URL, stating whether it was created, updated, or unchanged. Treat the maintained analysis as the skill's
+assessment; only the author's actual answers establish new agreed requirements.
 
 ## Label assessed GitHub issues
 
