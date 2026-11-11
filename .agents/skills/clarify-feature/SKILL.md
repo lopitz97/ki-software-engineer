@@ -1,6 +1,6 @@
 ---
 name: clarify-feature
-description: Guide a user from a feature idea to clear requirements through focused questions about the goal, constraints, and scope, then produce a user story with Given/When/Then acceptance criteria and technical notes. Use for feature discovery and requirements clarification before implementation.
+description: Clarify feature ideas through focused questions, then produce a user story with Given/When/Then acceptance criteria and technical notes. When assessing an identified GitHub issue, assign suitable labels and create missing labels when needed. Use for feature discovery and requirements clarification before implementation.
 ---
 
 # Clarify feature
@@ -71,8 +71,60 @@ For GitHub CLI, write the exact Markdown to a temporary UTF-8 file and use
 its URL; if a write result is uncertain, read the issue comments before retrying to avoid duplicates. If publication fails,
 return the prepared response with the specific blocker rather than claiming success.
 
-Do not edit or close the issue or implement the feature. In an interactive session, follow the clarification workflow below
-instead.
+After assessing the issue, assign suitable labels as described below. Do not change the issue title, body, or state or
+implement the feature. In an interactive session, follow the clarification workflow below instead.
+
+## Label assessed GitHub issues
+
+When invoked to assess an identified GitHub issue, add appropriate repository labels after the assessment, even when
+clarification questions remain. Create a missing label when the criteria below justify it. A draft or read-only request
+produces label recommendations without writing to GitHub. Creating or editing this skill does not itself authorize
+labeling any live issue or creating labels.
+
+Read the repository's current label names and descriptions and the issue's current labels before selecting changes. Use
+the available GitHub tool or these read-only CLI commands with the resolved repository and issue:
+
+```sh
+gh label list --repo OWNER/REPO --limit 100 --json name,description
+gh issue view NUMBER --repo OWNER/REPO --json number,url,labels
+```
+
+Read further pages when necessary to inspect the relevant label catalog. Select labels based on the assessed requirements
+and the repository's descriptions; do not assume every repository uses the same names. Typical matches, when available:
+
+- `bug`: described behavior fails an established expectation.
+- `enhancement`: a new capability or improvement is requested.
+- `documentation`: the requested work concerns documentation.
+- `accessibility`: the issue concerns barriers affecting people with disabilities.
+- `question`: material information is missing and the analysis asks the author for clarification.
+
+Apply multiple labels when each describes a distinct supported aspect. Do not label every clarification request as a bug
+or assign labels merely because their names occur in the issue text. Labels implying rejection, duplication, priority,
+ownership, or contributor suitability need supporting evidence or an explicit maintainer decision; do not infer `invalid`,
+`wontfix`, `duplicate`, `good first issue`, or `help wanted` from uncertainty alone.
+
+Prefer existing labels with matching meaning, including synonyms, rather than creating near-duplicates. If no existing
+label represents a clearly supported, useful classification, create a concise, reusable label that follows the repository's
+language, naming, and color conventions. Give it a meaningful description and a six-digit hexadecimal color without `#`.
+Avoid labels specific to a single issue or unsupported product, priority, or ownership decisions. If the classification
+itself is uncertain, explain that uncertainty instead of inventing a label.
+
+Use the available GitHub tool or
+`gh label create LABEL --repo OWNER/REPO --description DESCRIPTION --color HEXCOLOR` with appropriately quoted arguments.
+Do not use `--force`, which could overwrite an existing label. Verify creation before assigning the label. If creation
+returns an already-exists conflict or an uncertain result, refresh the catalog and reuse a matching existing label; do not
+overwrite it or create a spelling variant to bypass the conflict. Report permission failures without repeatedly retrying.
+
+Preserve existing labels. Add only selected labels that are missing from the issue; do not rename, delete, or remove labels
+as part of this assessment.
+
+For CLI writes, use `gh issue edit NUMBER --repo OWNER/REPO --add-label LABEL` with exact verified label names, quoting
+each argument appropriately. Repeated `--add-label` options can add several labels without replacing the current set.
+Read the issue labels back after writing and report only verified additions. If a write result is uncertain, read the
+current labels before retrying. If labeling fails, preserve the analysis and report that failure separately from comment
+publication. Briefly state the selected labels and reasons in the analysis, and distinguish newly created repository labels
+from issue label additions in the final handoff. Never claim a label was created or added when it was only recommended or
+already present. If creation succeeds but assignment fails, report those outcomes separately.
 
 ## Clarify interactively
 
