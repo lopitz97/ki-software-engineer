@@ -52,16 +52,17 @@ Only a verified Red result starts the Green job. It checks out the exact startin
 
 The workflow uploads Red diagnostics and an implementation patch as artifacts retained for seven days. It currently does not push a branch or create a PR, merge, deploy, or close the issue. Existing remote feature branches are reused without force or reset. Open questions in the issue must still be answered before tests can define the intended behavior; assigning `ready-for-implementation` alone does not establish those answers.
 
-## Pull request build and auto-fix test
+## Automatic CI fixes
 
-The [build workflow](.github/workflows/build.yml) runs on opened, updated, and reopened pull requests. It checks out the
-PR head commit, installs dependencies with Node.js 22, and runs `npm run build`. Its existing name,
-`Deploy to GitHub Pages`, is retained to match the unchanged [auto-fix workflow](.github/workflows/auto-fix.yml);
-the build does not deploy anything.
+[Auto-fix](.github/workflows/auto-fix.yml) reacts to failed `Deploy to GitHub Pages` runs from branches in this
+repository. It prepares an `auto-fix/{run-id}-{attempt}` branch at the failed commit. Codex repairs and commits the
+changes and writes a Markdown explanation of the cause, changes, and validation. After an independent successful
+`npm run build`, the workflow pushes the fix branch and opens a new PR targeting the failed build's source branch.
+The PR includes the explanation, build result, failed-run link, and starting commit. It does not merge the PR.
 
-A failed build starts auto-fix through `workflow_run`, provided `auto-fix.yml` exists on the default branch.
-For this test, use a branch in this repository. Auto-fix attempts repairs and local commits, then verifies the build.
-It does not push changes back or create a pull request; inspect its Actions logs for the result.
+No PR is created when there are no changes or the source branch has advanced. Uncommitted changes or a missing
+explanation fail publication. Fork runs are excluded. The workflow must exist on the default branch, and repository
+Settings > Actions > General > Workflow permissions must allow GitHub Actions to create and approve pull requests.
 
 ## Pull request review
 
