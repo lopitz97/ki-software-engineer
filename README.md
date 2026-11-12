@@ -52,6 +52,17 @@ Only a verified Red result starts the Green job. It checks out the exact startin
 
 The workflow uploads Red diagnostics and an implementation patch as artifacts retained for seven days. It currently does not push a branch or create a PR, merge, deploy, or close the issue. Existing remote feature branches are reused without force or reset. Open questions in the issue must still be answered before tests can define the intended behavior; assigning `ready-for-implementation` alone does not establish those answers.
 
+## Pull request build and auto-fix test
+
+The [build workflow](.github/workflows/build.yml) runs on opened, updated, and reopened pull requests. It checks out the
+PR head commit, installs dependencies with Node.js 22, and runs `npm run build`. Its existing name,
+`Deploy to GitHub Pages`, is retained to match the unchanged [auto-fix workflow](.github/workflows/auto-fix.yml);
+the build does not deploy anything.
+
+A failed build starts auto-fix through `workflow_run`, provided `auto-fix.yml` exists on the default branch.
+For this test, use a branch in this repository. Auto-fix attempts repairs and local commits, then verifies the build.
+It does not push changes back or create a pull request; inspect its Actions logs for the result.
+
 ## Pull request review
 
 The [PR-review workflow](.github/workflows/pr-review.yml) runs on `pull_request: opened` and `synchronize` for branches in this repository. It uses the same Codex Action setup as issue analysis, with `pull-requests: write` to post feedback. Codex reviews the exact PR head, reads the diff and applicable `AGENTS.md` instructions, and comments on code quality, bugs, performance, security, and test coverage. The review is static; it does not run PR code, change source files, approve, or merge. A newer push cancels an older review run. Fork and Dependabot PRs are skipped because this workflow requires the repository API-key secret and comment write access.
