@@ -12,6 +12,6 @@
     "resolveJsonModule": true,
     "types": ["node"]
   },
-  "include": ["index.ts"],
+  "include": ["index.ts", "migrations.ts"],
   "exclude": ["node_modules", "dist"]
 }

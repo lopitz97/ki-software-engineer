@@ -11,3 +11,6 @@ cwd = 'D:\ki-software-engineer'
 
 [mcp_servers.angular-mcp.tools.generate_component]
 approval_mode = "approve"
+
+[mcp_servers.angular-mcp.tools.run_migration]
+approval_mode = "approve"

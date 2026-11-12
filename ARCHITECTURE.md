@@ -145,6 +145,28 @@ For production-configuration coverage, set `BOOKMONKEY_TEST_PRODUCTION=1` before
 
 The incomplete Karma target and Jasmine tsconfig were removed. `npm test` now runs actual browser coverage; no Angular unit-test runner is configured.
 
+## Local Angular MCP server
+
+[tools/angular-mcp/index.ts](tools/angular-mcp/index.ts) registers the custom stdio MCP server configured in
+[.codex/config.toml](.codex/config.toml). Build it with `npm run build.angular-mcp`; restart the connection after
+changes. Protocol output uses stdout, while startup diagnostics use stderr.
+
+The `run_migration` tool delegates to [migrations.ts](tools/angular-mcp/migrations.ts). Its discriminated input
+selects `code` (`ng generate @angular/core:<migration>`) or `version` (`ng update <package> --migrate-only`).
+Code migrations accept a workspace-relative path, a dry run, and an optional standalone phase. Version migrations
+accept an installed package, starting and optional target version, optional migration name, and explicit dirty-tree
+opt-in. They do not install or upgrade dependencies. Available code migrations match the installed Angular 20 CLI.
+
+The migration runner invokes the local CLI JavaScript entry point with Node and an argument array, without a shell
+or automatic CLI download (`NG_DISABLE_VERSION_CHECK=true`). It runs from the workspace root, disables interactive prompts and analytics, limits execution
+to ten minutes and output to 10 MiB, and returns stdout/stderr with `isError` on failure. A failed migration can leave
+partial changes; the tool does not reset files. Both custom tools use the existing per-tool approval configuration.
+
+[migrations.test.cjs](tools/angular-mcp/migrations.test.cjs) checks argument forwarding, input rejection, CLI failures,
+a real control-flow preview/application, a version-migration CLI invocation with no pending migrations in an isolated
+workspace, and tool discovery/validation over stdio. Run it after compiling the MCP server. Version migration execution
+depends on the installed package's migrations; tests do not apply version migrations to this application.
+
 ## Automatic CI fixes
 
 [Auto-fix](.github/workflows/auto-fix.yml) handles failed `Deploy to GitHub Pages` runs from the same repository.

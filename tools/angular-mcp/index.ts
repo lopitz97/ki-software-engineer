@@ -4,6 +4,7 @@ import { exec as execSync } from 'child_process';
 import { dirname } from 'path';
 import { promisify } from 'util';
 import { z } from 'zod';
+import { migrationSchema, runMigration } from './migrations.js';
 
 const exec = promisify(execSync);
 
@@ -40,10 +41,22 @@ server.registerTool(
   }
 );
 
+server.registerTool(
+  'run_migration',
+  {
+    title: 'Run Angular Migration',
+    description:
+      'Runs code migrations with ng generate or installed-package version migrations with ng update --migrate-only. ' +
+      'Uses the local Angular CLI. Code migrations support dryRun. Version migrations do not upgrade packages.',
+    inputSchema: migrationSchema
+  },
+  async options => runMigration(options, dirname(dirname(__dirname)))
+);
+
 // Start listening for MCP messages on STDIN/STDOUT
 const transport = new StdioServerTransport();
 
 server
   .connect(transport)
-  .then(() =>  console.log('MCP server started'))
-  .catch(error =>  console.error('Error connecting to MCP server:', error));
+  .then(() => console.error('MCP server started'))
+  .catch(error => console.error('Error connecting to MCP server:', error));

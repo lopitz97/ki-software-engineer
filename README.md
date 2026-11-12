@@ -36,6 +36,37 @@ $env:BOOKMONKEY_TEST_PRODUCTION = '1'
 try { npm.cmd test -- --project=chromium } finally { Remove-Item Env:BOOKMONKEY_TEST_PRODUCTION }
 ```
 
+## Local Angular MCP
+
+Build the custom server with `npm run build.angular-mcp`, then restart the `angular-mcp` connection in Codex.
+The server is registered in [.codex/config.toml](.codex/config.toml). It provides `generate_component` and
+`run_migration`. Migration calls execute the locally installed Angular CLI from the workspace root.
+
+Code migration example (`ng generate @angular/core:control-flow`):
+
+```json
+{ "kind": "code", "migration": "control-flow", "path": "src/app", "dryRun": true }
+```
+
+Set `dryRun` to `false` or omit it to apply changes. Supported migrations are `control-flow`, `inject`,
+`standalone`, `route-lazy-loading`, `signal-inputs`, `signal-queries`, `outputs`, `signals`,
+`cleanup-unused-imports`, and `self-closing-tag`. For `standalone`, the optional `standaloneMode` selects
+`convert-to-standalone` (default), `prune-ng-modules`, or `standalone-bootstrap`. Paths must stay inside the workspace.
+
+Version migration example (`ng update @angular/core --migrate-only`):
+
+```json
+{ "kind": "version", "package": "@angular/core", "from": "19.0.0", "to": "20.2.1" }
+```
+
+`package` defaults to `@angular/core`; `to` defaults to the installed version. Optional `name` selects one migration.
+This runs migrations provided by the installed package without upgrading dependencies. Version migrations have no
+dry-run option. The CLI requires a clean working tree unless `allowDirty: true` is explicitly provided.
+
+Run the MCP tests with `npm run build.angular-mcp` followed by `node --test tools/angular-mcp/migrations.test.cjs`.
+The tests include a real CLI code migration, a version-migration invocation without pending migrations in an isolated
+temporary workspace, and MCP communication over stdio.
+
 ## Issue analysis automation
 
 The [issue-analysis workflow](.github/workflows/issue-analysis.yml) analyzes new or edited issues and human issue comments using `clarify-feature`. It maintains one analysis comment, identified by a hidden marker and author, and adds suitable labels, creating reusable labels when needed. Bot and pull-request comments are excluded. Existing labels are preserved except for `ready-for-implementation`: the skill sets it only after requirements are clear and the analysis comment is verified, and removes it if later discussion introduces material uncertainty.
