@@ -2,3 +2,12 @@
 type = "stdio"
 command = "npx"
 args = ["-y", "@angular/cli", "mcp"]
+
+# Build with npm run build.angular-mcp before starting this server.
+[mcp_servers.angular-mcp]
+command = "node"
+args = ["dist/angular-mcp/index.js"]
+cwd = 'D:\ki-software-engineer'
+
+[mcp_servers.angular-mcp.tools.generate_component]
+approval_mode = "approve"
