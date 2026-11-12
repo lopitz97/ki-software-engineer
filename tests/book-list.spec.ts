@@ -1,6 +1,30 @@
 import { expect, test } from '@playwright/test';
 import { apiUrl, book, coverUrl, mockBooks } from './support/books';
 
+test('redirects an unknown URL to the lazy-loaded collection and opens details', async ({ page }) => {
+  await mockBooks(page);
+  await page.goto('/unknown-page');
+  await expect(page).toHaveURL('/');
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText('Book Collection');
+  await page.getByRole('link', { name: `View details for ${book.title}` }).click();
+  await expect(page).toHaveURL(`/books/${book.id}`);
+  await expect(page.getByRole('heading', { level: 1 })).toHaveText(book.title);
+  await page.getByRole('link', { name: 'Back to collection' }).click();
+  await expect(page.getByRole('heading', { name: book.title, exact: true })).toBeVisible();
+});
+
+test('renders cards without optional text and keeps their detail link accessible', async ({ page }) => {
+  await mockBooks(page, { ...book, subtitle: undefined, isbn: '' });
+  await page.goto('/');
+  await expect(page.getByRole('heading', { name: book.title, exact: true })).toBeVisible();
+  await expect(page.getByText(book.subtitle, { exact: true })).toHaveCount(0);
+  await expect(page.getByText('ISBN:', { exact: false })).toHaveCount(0);
+  await expect(page.getByRole('link', { name: `View details for ${book.title}` })).toHaveAttribute(
+    'href',
+    `/books/${book.id}`
+  );
+});
+
 test('distinguishes an initial failure from empty results and retries', async ({ page }) => {
   await mockBooks(page);
   let requests = 0;

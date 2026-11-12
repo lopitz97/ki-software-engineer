@@ -44,9 +44,9 @@ tsconfig*.json                    Strict application TypeScript settings
 
 ## Bootstrap, providers, and routing
 
-[src/main.ts](src/main.ts) calls `bootstrapApplication(App, appConfig)`. Components are standalone with explicit template dependencies. [app.config.ts](src/app/app.config.ts) provides the router, HTTP client, API base URL, browser global error listeners, and Zone.js change detection with event coalescing.
+[src/main.ts](src/main.ts) calls `bootstrapApplication(App, appConfig)`. Components are standalone with explicit template dependencies and `OnPush` change detection. Required presentation inputs use `input.required()`, services use `inject()`, and templates use native control flow. [app.config.ts](src/app/app.config.ts) provides the router, HTTP client, API base URL, browser global error listeners, and Zone.js change detection with event coalescing.
 
-[app.routes.ts](src/app/app.routes.ts) maps `/` to the collection and `/books/:id` to details, with the wildcard redirect last. Screens are imported eagerly. Details support direct links and refresh without requiring a loaded collection. The root App owns only persistent layout and its router outlet.
+[app.routes.ts](src/app/app.routes.ts) maps `/` to the collection and `/books/:id` to details, with the wildcard redirect last. Both screens are lazy-loaded with `loadComponent`. Details support direct links and refresh without requiring a loaded collection. The root App owns only persistent layout and its router outlet.
 
 Unused NgRx, Angular Query, SSR, Express, Material, CDK, and animation dependencies were removed from the direct package declarations. The unused toast service and Material theme were removed together. Some packages, such as Express, may still appear as transitive development-tool dependencies.
 
@@ -69,7 +69,7 @@ Book-specific behavior stays inside `books/`. Shared layers or state libraries s
 
 ```mermaid
 flowchart TD
-    Input[Search input / ngModel] --> Events[Initial / query / clear / retry events]
+    Input[Search input / typed FormControl] --> Events[Initial / query / clear / retry events]
     Events --> Switch[Outer switchMap cancels previous delay and request]
     Switch --> Delay[Typed query: 300 ms; initial / clear / retry: immediate]
     Delay --> Client[BookApiClient.getBooks]
@@ -81,7 +81,7 @@ flowchart TD
 
 The list loads immediately using the API client's default limit of 10. The old public `pageSize` input had no callers and was removed instead of exposing a setting that did not reload on changes.
 
-The draft `searchTerm` is separate from the query captured in each state. Every change immediately enters an outer `switchMap`, cancelling both a pending RxJS timer and an in-flight request. Nonempty typed queries wait 300 ms; clearing, initial loading, and retry request immediately. Consecutive identical queries are suppressed, while explicit retries bypass that suppression.
+The non-nullable search `FormControl` holds the draft text separately from the query captured in each state. Its `valueChanges` merge with explicit retry events. Every change immediately enters an outer `switchMap`, cancelling both a pending RxJS timer and an in-flight request. Nonempty typed queries wait 300 ms; clearing, initial loading, and retry request immediately. Consecutive identical queries are suppressed, while explicit retries bypass that suppression.
 
 Every accepted event first emits loading and removes previous results. Only successful empty arrays show an empty message. Failures show an inline alert and retry for the failed query. Error handling stays inside the request branch, allowing later input to recover. A single async pipe owns the entire stream and disposes its timer and HTTP subscription when the screen is destroyed.
 
@@ -91,7 +91,7 @@ Items are tracked by ID. Search input has a label, interactive controls have vis
 
 Details combine route-ID changes and retry events using `switchMap`. Superseded requests are cancelled, loading clears stale content immediately, and the single async pipe handles subscription cleanup. Empty matches and HTTP 404 responses produce not-found; other failures offer retry. Every state offers back-navigation.
 
-Both screens use [BookCoverComponent](src/app/books/book-cover.component.ts). It renders a placeholder for missing or failed images and resets failure state when its URL input changes. The details loading branch destroys its success view, so subsequent success creates a fresh cover. Request pipelines do not manage cover flags.
+Both screens use [BookCoverComponent](src/app/books/book-cover.component.ts). It renders a placeholder for missing or failed images and uses `linkedSignal` to reset failure state when its URL signal input changes. Covers use dynamic API URLs and ordinary image bindings. The details loading branch destroys its success view, so subsequent success creates a fresh cover. Request pipelines do not manage cover flags.
 
 Abstracts render through text interpolation with preserved line breaks. Prices retain the API's string value without an inferred currency. Each screen supplies its own single page heading; the app-shell brand is a paragraph.
 
@@ -117,7 +117,7 @@ Tailwind CSS 4 supplies application styling through [src/styles.css](src/styles.
 
 [ThemeControlComponent](src/app/theme-control.component.ts) provides a labeled native System / Light / Dark selector in the persistent header. System is the default and follows `prefers-color-scheme`, including changes while the app is open. Manual choices override device changes. The selected preference is saved as `bookmonkey-theme` in browser `localStorage`; missing, invalid, or inaccessible saved values fall back to System. If storage writes are blocked, selection still works for the current session. The device listener is removed when the component is destroyed.
 
-The component applies the resolved `dark` class and native `color-scheme` to the document root. Tailwind's custom `dark` variant follows that class, allowing a manual light override even when the device is dark. Root colors and dark utilities cover the header, footer, collection, detail cards, covers, controls, and loading/empty/error states. Theme state requires no backend changes or shared state library.
+The component stores the preference and device appearance in signals, derives the resolved appearance with `computed()`, and applies the `dark` class and native `color-scheme` to the document root through a component-lifetime effect. Tailwind's custom `dark` variant follows that class, allowing a manual light override even when the device is dark. Root colors and dark utilities cover the header, footer, collection, detail cards, covers, controls, and loading/empty/error states. Theme state requires no backend changes or shared state library.
 
 The declared toolchain is Angular 20.2, TypeScript 5.9, and RxJS 7.8. [tsconfig.json](tsconfig.json) preserves strict TypeScript and template checks. Production builds use bundle budgets and output hashing; development enables source maps and disables optimization. Public assets are copied to the output. There is no application build or test CI pipeline in the repository.
 

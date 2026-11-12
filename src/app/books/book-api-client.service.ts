@@ -6,9 +6,8 @@ import { Book } from './book';
 
 @Injectable({ providedIn: 'root' })
 export class BookApiClient {
+  private readonly http = inject(HttpClient);
   private readonly apiUrl = `${inject(BOOK_API_BASE_URL).replace(/\/$/, '')}/books`;
-
-  constructor(private http: HttpClient) {}
 
   getBook(id: string): Observable<Book> {
     // The API's /books/:isbn endpoint uses ISBN, while application routes use IDs.
@@ -24,7 +23,7 @@ export class BookApiClient {
     );
   }
 
-  getBooks(pageSize: number = 10, searchTerm?: string): Observable<Book[]> {
+  getBooks(pageSize = 10, searchTerm?: string): Observable<Book[]> {
     let params = new HttpParams().set('_limit', pageSize.toString());
 
     if (searchTerm) {

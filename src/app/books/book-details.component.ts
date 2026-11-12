@@ -1,6 +1,6 @@
 import { AsyncPipe } from '@angular/common';
 import { HttpErrorResponse } from '@angular/common/http';
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { ActivatedRoute, RouterLink } from '@angular/router';
 import {
   catchError,
@@ -21,7 +21,7 @@ type DetailsState = { status: 'loading' | 'not-found' | 'error' } | { status: 's
 
 @Component({
   selector: 'app-book-details',
-  standalone: true,
+  changeDetection: ChangeDetectionStrategy.OnPush,
   imports: [AsyncPipe, RouterLink, BookCoverComponent],
   templateUrl: './book-details.component.html'
 })

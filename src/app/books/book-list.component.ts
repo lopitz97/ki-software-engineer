@@ -1,7 +1,18 @@
 import { AsyncPipe } from '@angular/common';
-import { Component, inject } from '@angular/core';
-import { FormsModule } from '@angular/forms';
-import { catchError, distinctUntilChanged, map, Observable, of, startWith, Subject, switchMap, timer } from 'rxjs';
+import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
+import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import {
+  catchError,
+  distinctUntilChanged,
+  map,
+  merge,
+  Observable,
+  of,
+  startWith,
+  Subject,
+  switchMap,
+  timer
+} from 'rxjs';
 import { Book } from './book';
 import { BookApiClient } from './book-api-client.service';
 import { BookItemComponent } from './book-item.component';
@@ -13,16 +24,19 @@ type SearchRequest = { query: string; debounce: boolean; retry?: boolean };
 
 @Component({
   selector: 'app-book-list',
-  standalone: true,
-  imports: [AsyncPipe, FormsModule, BookItemComponent],
+  changeDetection: ChangeDetectionStrategy.OnPush,
+  imports: [AsyncPipe, ReactiveFormsModule, BookItemComponent],
   templateUrl: './book-list.component.html'
 })
 export class BookListComponent {
   private readonly api = inject(BookApiClient);
   private readonly requests = new Subject<SearchRequest>();
-  searchTerm = '';
+  readonly search = new FormControl('', { nonNullable: true });
 
-  readonly state$: Observable<CollectionState> = this.requests.pipe(
+  readonly state$: Observable<CollectionState> = merge(
+    this.search.valueChanges.pipe(map((query): SearchRequest => ({ query, debounce: query !== '' }))),
+    this.requests
+  ).pipe(
     startWith<SearchRequest>({ query: '', debounce: false }),
     distinctUntilChanged((previous, current) => !current.retry && previous.query === current.query),
     // Cancel both the pending delay and HTTP request as soon as the input changes.
@@ -36,13 +50,8 @@ export class BookListComponent {
     )
   );
 
-  onSearchChange(query: string): void {
-    this.searchTerm = query;
-    this.requests.next({ query, debounce: query !== '' });
-  }
-
   clearSearch(): void {
-    this.onSearchChange('');
+    this.search.setValue('');
   }
 
   retry(query: string): void {

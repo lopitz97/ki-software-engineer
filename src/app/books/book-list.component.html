@@ -9,12 +9,11 @@
     <input
       id="book-search"
       type="text"
-      [ngModel]="searchTerm"
-      (ngModelChange)="onSearchChange($event)"
+      [formControl]="search"
       placeholder="Search for books..."
       class="appearance-none bg-transparent border-none w-full min-w-0 text-gray-700 dark:text-gray-200 mr-3 py-1 px-2 leading-tight rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700 dark:focus-visible:outline-blue-300"
     />
-    @if (searchTerm) {
+    @if (search.value) {
       <button
         type="button"
         aria-label="Clear search"
