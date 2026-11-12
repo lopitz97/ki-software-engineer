@@ -9,7 +9,9 @@ on:
 jobs:
   auto-fix:
     # Only run if the CI workflow failed
-    if: ${{ github.event.workflow_run.conclusion == 'failure' }}
+    if: >-
+      github.event.workflow_run.conclusion == 'failure' &&
+      github.event.workflow_run.head_repository.full_name == github.repository
     runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
@@ -24,6 +26,15 @@ jobs:
           # Use the SHA from the failed workflow run
           ref: ${{ github.event.workflow_run.head_sha }}
           fetch-depth: 0
+
+      - name: Prepare fix branch
+        env:
+          FIX_BRANCH: auto-fix/${{ github.run_id }}-${{ github.run_attempt }}
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+          git switch --create "$FIX_BRANCH"
+          mkdir -p tmp
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -87,12 +98,15 @@ jobs:
                - Package.json dependencies
             4. Test the fixes locally with `npm run build`
             5. Commit the changes with a descriptive commit message
+            6. Write tmp/auto-fix-summary.md in UTF-8 Markdown describing the root cause, the concrete changes,
+               and the actual validation commands and results. Keep this report uncommitted.
 
             **Important Rules:**
             - Use Conventional Commits standard
             - ALWAYS test with `npm run build` before committing
             - If multiple fixes are needed, create separate commits
             - For critical errors, create an issue instead of auto-fixing
+            - Stay on the prepared fix branch. Do not push or create a pull request; the workflow handles publication.
 
             **Example Commit Messages:**
             - `fix: yaml syntax error in blog frontmatter`
@@ -107,22 +121,48 @@ jobs:
 
       - name: Create Pull Request if changes were made
         if: success()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          SOURCE_SHA: ${{ github.event.workflow_run.head_sha }}
+          BASE_BRANCH: ${{ github.event.workflow_run.head_branch }}
+          FIX_BRANCH: auto-fix/${{ github.run_id }}-${{ github.run_attempt }}
+          FAILED_RUN_URL: ${{ github.event.workflow_run.html_url }}
         run: |
-          if [[ -n $(git status --porcelain) ]]; then
-            echo "Changes detected, but they should already be committed by Claude"
-            echo "Checking if we're on main branch..."
-            if [[ $(git branch --show-current) == "main" ]]; then
-              echo "Direct commits to main detected"
-              git log -1 --pretty=format:"%h - %s (%an)"
-            fi
-          else
-            echo "No uncommitted changes found"
+          set -euo pipefail
+          test "$(git branch --show-current)" = "$FIX_BRANCH"
+          test -z "$(git status --porcelain)"
+          git merge-base --is-ancestor "$SOURCE_SHA" HEAD
+
+          if git diff --quiet "$SOURCE_SHA" HEAD; then
+            echo "No fixes to publish."
+            exit 0
           fi
+
+          test -s tmp/auto-fix-summary.md
+          REMOTE_SHA=$(git ls-remote --exit-code origin "refs/heads/$BASE_BRANCH" | cut -f1)
+          if [[ "$REMOTE_SHA" != "$SOURCE_SHA" ]]; then
+            echo "Source branch changed since the failed build; skipping stale fixes."
+            exit 0
+          fi
+
+          {
+            cat tmp/auto-fix-summary.md
+            printf '\n\n## Validation\n\nThe workflow independently verified `npm run build` successfully.\n'
+            printf '\n## Context\n\nFailed build: %s\n\nStarting commit: `%s`\n' "$FAILED_RUN_URL" "$SOURCE_SHA"
+          } > "$RUNNER_TEMP/auto-fix-pr.md"
+
+          git push origin "HEAD:refs/heads/$FIX_BRANCH"
+          PR_URL=$(gh pr create --repo "$GITHUB_REPOSITORY" --base "$BASE_BRANCH" --head "$FIX_BRANCH" \
+            --title "fix: repair CI failure on $BASE_BRANCH" --body-file "$RUNNER_TEMP/auto-fix-pr.md")
+          gh pr view "$PR_URL" --repo "$GITHUB_REPOSITORY" --json url,baseRefName,headRefName
+          printf 'Created auto-fix PR: %s\n' "$PR_URL" >> "$GITHUB_STEP_SUMMARY"
 
   notify-failure:
     if: ${{ always() && needs.auto-fix.result == 'failure' }}
     needs: auto-fix
     runs-on: ubuntu-latest
+    permissions:
+      issues: write
     steps:
       - name: Create issue for failed auto-fix
         uses: actions/github-script@v7

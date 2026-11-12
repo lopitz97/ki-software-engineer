@@ -52,6 +52,18 @@ Only a verified Red result starts the Green job. It checks out the exact startin
 
 The workflow uploads Red diagnostics and an implementation patch as artifacts retained for seven days. It currently does not push a branch or create a PR, merge, deploy, or close the issue. Existing remote feature branches are reused without force or reset. Open questions in the issue must still be answered before tests can define the intended behavior; assigning `ready-for-implementation` alone does not establish those answers.
 
+## Automatic CI fixes
+
+[Auto-fix](.github/workflows/auto-fix.yml) reacts to failed `Deploy to GitHub Pages` runs from branches in this
+repository. It prepares an `auto-fix/{run-id}-{attempt}` branch at the failed commit. Codex repairs and commits the
+changes and writes a Markdown explanation of the cause, changes, and validation. After an independent successful
+`npm run build`, the workflow pushes the fix branch and opens a new PR targeting the failed build's source branch.
+The PR includes the explanation, build result, failed-run link, and starting commit. It does not merge the PR.
+
+No PR is created when there are no changes or the source branch has advanced. Uncommitted changes or a missing
+explanation fail publication. Fork runs are excluded. The workflow must exist on the default branch, and repository
+Settings > Actions > General > Workflow permissions must allow GitHub Actions to create and approve pull requests.
+
 ## Pull request review
 
 The [PR-review workflow](.github/workflows/pr-review.yml) runs on `pull_request: opened` and `synchronize` for branches in this repository. It uses the same Codex Action setup as issue analysis, with `pull-requests: write` to post feedback. Codex reviews the exact PR head, reads the diff and applicable `AGENTS.md` instructions, and comments on code quality, bugs, performance, security, and test coverage. The review is static; it does not run PR code, change source files, approve, or merge. A newer push cancels an older review run. Fork and Dependabot PRs are skipped because this workflow requires the repository API-key secret and comment write access.

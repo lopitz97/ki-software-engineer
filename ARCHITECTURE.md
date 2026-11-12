@@ -145,6 +145,18 @@ For production-configuration coverage, set `BOOKMONKEY_TEST_PRODUCTION=1` before
 
 The incomplete Karma target and Jasmine tsconfig were removed. `npm test` now runs actual browser coverage; no Angular unit-test runner is configured.
 
+## Automatic CI fixes
+
+[Auto-fix](.github/workflows/auto-fix.yml) handles failed `Deploy to GitHub Pages` runs from the same repository.
+It checks out the failed SHA, configures the Git bot identity, and creates `auto-fix/{run-id}-{attempt}`.
+Codex commits the repair locally and writes an uncommitted explanation to ignored `tmp/auto-fix-summary.md`.
+The workflow independently runs `npm run build` before publishing. It requires a clean working tree, preservation
+of the starting commit, a nonempty repair diff, and a nonempty explanation. It checks the source branch still points
+to the failed SHA before pushing a new branch without force and creating a PR targeting that source branch.
+The PR body includes the explanation, successful build check, failed-run URL, and starting SHA; its URL is recorded
+in the Actions summary. Fork runs, empty repairs, and stale source branches do not publish a PR. Failures use the
+existing notification job with `issues: write`. Creating PRs also requires the repository's Actions PR setting.
+
 ## Current limits and extension points
 
 - Search state resets on navigation; there is no shared cache or persisted query.
