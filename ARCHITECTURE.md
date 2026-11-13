@@ -21,6 +21,7 @@ src/
     theme-control.component.ts    System/light/dark preference and document theme
     books/
       book.ts                     API response interface
+      book-changes.ts             Editable fields and numeric write-price type
       book-api-url.ts             API base URL injection token
       book-api-client.service.ts  HTTP requests and response selection
       book-list.component.ts      Collection state and search events
@@ -29,10 +30,13 @@ src/
       book-cover.component.ts     Cover image and missing/failed-image fallback
       book-details.component.ts   Route-driven detail state and retry
       book-details.component.html Detail states and metadata
+      book-edit.component.ts      Typed form, validation and lifetime-bound save
+      book-edit.component.html    Accessible editing form and save feedback
 public/                           Static build assets
 docs/                             README artwork
 tests/
   book-details.spec.ts            Details browser regression suite
+  book-edit.spec.ts               Editing, validation, persistence and retry coverage
   book-list.spec.ts               Collection browser regression suite
   theme.spec.ts                   Theme behavior, persistence, and keyboard coverage
   support/books.ts                Shared fixtures, URLs, API and cover mocks
@@ -60,6 +64,7 @@ Unused NgRx, Angular Query, SSR, Express, Material, CDK, and animation dependenc
 | BookItemComponent     | Presentation of a required book input and a detail link; no HTTP        |
 | BookCoverComponent    | Required URL/alternative-text inputs, image failure state and fallback  |
 | BookDetailsComponent  | Route ID and retry events, loading/success/not-found/error state        |
+| BookEditComponent     | Local editing form, validation, saving/error state, save/cancel outputs |
 | BookApiClient         | API URLs, query parameters, HTTP requests, exact-ID result selection    |
 | Book                  | Compile-time representation of the API response                         |
 
@@ -95,9 +100,31 @@ Both screens use [BookCoverComponent](src/app/books/book-cover.component.ts). It
 
 Abstracts render through text interpolation with preserved line breaks. Prices retain the API's string value without an inferred currency. Each screen supplies its own single page heading; the app-shell brand is a paragraph.
 
+## Editing books
+
+The details success view offers an **Edit book** button. It replaces the article with
+[BookEditComponent](src/app/books/book-edit.component.ts) at the same `/books/:id` URL; no new route or shared state is needed.
+The editor initializes a typed reactive form with title, subtitle, author, publisher, page count, price, cover URL and
+description. ISBN is displayed as immutable text, and technical IDs are not exposed as fields. Title and author must
+contain text; pages are required and must be a nonnegative integer. Price is optional and must be nonnegative when present.
+Inputs have labels, field-associated validation messages, responsive layout and light/dark styling.
+
+Save calls `BookApiClient.updateBook` using the existing book and editable changes. It sends `PUT <base>/books/:isbn`,
+encoding the ISBN and excluding the response ID from the body. The existing resource fields are retained, including ISBN
+and user ID; only editable fields are replaced. This full replacement allows a cleared optional price to be omitted instead
+of retaining its old value as a PATCH would. Empty optional text fields are sent as empty strings. The write price is
+numeric, matching the inspected, locally cached Bookmonkey API 5.0.1 schema; existing read-price strings remain accepted by
+the editor and no currency is inferred. This repository's read model does not describe every field of that API version.
+
+During a save the form and action buttons are disabled, and a saving status is announced. A failure keeps the draft intact,
+shows an alert and enables another save. Success destroys the editor and reloads the details through their existing retry
+stream. Cancel destroys the draft without a write and restores the original details. A route-ID change clears editing state
+and destroys the editor; its save subscription uses `takeUntilDestroyed` so a late response cannot overwrite another screen.
+Cancelling a browser request cannot undo a write already accepted by the backend.
+
 ## Backend boundary and deployment configuration
 
-[BookApiClient](src/app/books/book-api-client.service.ts) injects [BOOK_API_BASE_URL](src/app/books/book-api-url.ts), strips a trailing slash, and appends `/books`. Its methods are `getBooks(pageSize = 10, searchTerm?)` and `getBook(id): Observable<Book>`:
+[BookApiClient](src/app/books/book-api-client.service.ts) injects [BOOK_API_BASE_URL](src/app/books/book-api-url.ts), strips a trailing slash, and appends `/books`. Its read methods are `getBooks(pageSize = 10, searchTerm?)` and `getBook(id): Observable<Book>`:
 
 ```text
 GET <base>/books?_limit=10
@@ -138,6 +165,11 @@ The declared toolchain is Angular 20.2, TypeScript 5.9, and RxJS 7.8. [tsconfig.
 Playwright starts a dedicated frontend server at localhost:4202 and supplies a baseURL. It refuses to reuse an existing server so stale application code cannot silently pass the suite. API and cover requests are mocked before navigation; tests do not require the live backend or external websites. Shared fixtures/mocks live in `tests/support/books.ts`. The external Playwright starter suite was removed; the TodoMVC demo remains outside the configured `tests/` directory.
 
 The collection suite covers failure/retry/recovery, successful empty states, keyboard names and focus, debounce/clear behavior, immediate request cancellation, stale results, destruction cleanup, and cover fallbacks. Controlled response promises and Playwright's browser clock avoid fixed sleeps. Details coverage retains direct links/refresh, metadata, literal text, missing content, broken covers, loading, not-found, retry, encoded IDs, route cancellation, and mobile/desktop layout.
+
+The editing suite covers keyboard entry, all prefilled editable fields, ISBN/ID protection, saving and persistence across
+reload, optional-field clearing, cancellation, required fields, nonnegative numeric values, and save failure/retry with draft
+retention. Its per-test stateful mock distinguishes ID-filtered reads from ISBN-based PUT/PATCH writes. Backend schema and
+durability are not verified by mocked browser tests.
 
 The theme suite covers both device appearances, live device changes, manual overrides, returning to System, persistence across refresh and a new browser context restored from real saved storage, keyboard selection, and dark loading/empty/error states on both routes. It checks rendered backgrounds rather than relying on a particular CSS class. These automated checks do not constitute a complete visual contrast audit.
 
@@ -183,7 +215,7 @@ existing notification job with `issues: write`. Creating PRs also requires the r
 
 - Search state resets on navigation; there is no shared cache or persisted query.
 - API data is trusted at runtime. Introduce boundary validation only if the external contract requires it.
-- There are no create, edit, delete, authentication, or pagination workflows.
+- There are no create, delete, authentication, or pagination workflows.
 - Mocked tests verify frontend behavior and configured URLs, not a live backend or production reverse proxy.
 
 Start with `main.ts`, `app.config.ts`, and `app.routes.ts`, then follow each screen into the API client and presentation components. Keep HTTP details in the client and screen state local. Update this guide when changing routes, responsibilities, state, API contracts, or test setup.

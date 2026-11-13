@@ -29,36 +29,47 @@
         </button>
       }
       @case ('success') {
-        <article
-          class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-8 bg-white dark:bg-gray-900 rounded-lg shadow-md p-6"
-        >
-          <div class="aspect-[3/4] bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
-            <app-book-cover [url]="state.book.cover" [alt]="'Cover of ' + state.book.title" />
-          </div>
-          <div class="min-w-0 break-words">
-            <h1 class="text-3xl font-bold text-blue-700 dark:text-blue-300 mb-3">{{ state.book.title }}</h1>
-            @if (state.book.subtitle) {
-              <p class="text-xl text-gray-600 dark:text-gray-300 mb-3">{{ state.book.subtitle }}</p>
-            }
-            <p class="text-lg text-gray-700 dark:text-gray-200 mb-6">By {{ state.book.author }}</p>
-            <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3 text-gray-700 dark:text-gray-200">
-              <dt class="font-semibold">ISBN</dt>
-              <dd>{{ state.book.isbn }}</dd>
-              <dt class="font-semibold">Publisher</dt>
-              <dd>{{ state.book.publisher }}</dd>
-              <dt class="font-semibold">Pages</dt>
-              <dd>{{ state.book.numPages }}</dd>
-              <dt class="font-semibold">Price</dt>
-              <dd>{{ state.book.price }}</dd>
-            </dl>
-            @if (state.book.abstract) {
-              <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-100 mt-8 mb-3">About this book</h2>
-              <p class="whitespace-pre-line text-gray-700 dark:text-gray-200 leading-relaxed">
-                {{ state.book.abstract }}
-              </p>
-            }
-          </div>
-        </article>
+        @if (editing()) {
+          <app-book-edit [book]="state.book" (saved)="saved()" (cancelled)="editing.set(false)" />
+        } @else {
+          <article
+            class="grid grid-cols-1 md:grid-cols-[minmax(0,1fr)_minmax(0,2fr)] gap-8 bg-white dark:bg-gray-900 rounded-lg shadow-md p-6"
+          >
+            <div class="aspect-[3/4] bg-gray-100 dark:bg-gray-800 rounded-lg overflow-hidden">
+              <app-book-cover [url]="state.book.cover" [alt]="'Cover of ' + state.book.title" />
+            </div>
+            <div class="min-w-0 break-words">
+              <h1 class="text-3xl font-bold text-blue-700 dark:text-blue-300 mb-3">{{ state.book.title }}</h1>
+              @if (state.book.subtitle) {
+                <p class="text-xl text-gray-600 dark:text-gray-300 mb-3">{{ state.book.subtitle }}</p>
+              }
+              <p class="text-lg text-gray-700 dark:text-gray-200 mb-6">By {{ state.book.author }}</p>
+              <dl class="grid grid-cols-[auto_minmax(0,1fr)] gap-x-4 gap-y-3 text-gray-700 dark:text-gray-200">
+                <dt class="font-semibold">ISBN</dt>
+                <dd>{{ state.book.isbn }}</dd>
+                <dt class="font-semibold">Publisher</dt>
+                <dd>{{ state.book.publisher }}</dd>
+                <dt class="font-semibold">Pages</dt>
+                <dd>{{ state.book.numPages }}</dd>
+                <dt class="font-semibold">Price</dt>
+                <dd>{{ state.book.price }}</dd>
+              </dl>
+              @if (state.book.abstract) {
+                <h2 class="text-xl font-semibold text-gray-800 dark:text-gray-100 mt-8 mb-3">About this book</h2>
+                <p class="whitespace-pre-line text-gray-700 dark:text-gray-200 leading-relaxed">
+                  {{ state.book.abstract }}
+                </p>
+              }
+              <button
+                type="button"
+                (click)="editing.set(true)"
+                class="mt-6 bg-blue-700 hover:bg-blue-800 text-white rounded-md px-4 py-2 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700 dark:focus-visible:outline-blue-300"
+              >
+                Edit book
+              </button>
+            </div>
+          </article>
+        }
       }
     }
   }
