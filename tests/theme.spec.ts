@@ -94,7 +94,7 @@ for (const appearance of ['Light', 'Dark'] as const) {
     await selectTheme(page, appearance);
     await expectShell(page, appearance);
     await expectAppearance(page.getByRole('heading', { name: book.title, exact: true }), appearance);
-    await expectAppearance(page.getByRole('textbox', { name: 'Search books' }), appearance);
+    await expectAppearance(page.getByRole('textbox', { name: 'Search catalogue' }), appearance);
     await page.getByRole('link', { name: `View details for ${book.title}` }).click();
     await expect(page.getByRole('heading', { level: 1 })).toHaveText(book.title);
     await expectShell(page, appearance);

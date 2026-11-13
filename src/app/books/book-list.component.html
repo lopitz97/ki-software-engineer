@@ -11,29 +11,6 @@
       Add book
     </a>
   </div>
-  <div class="mb-6 flex items-center border-b-2 border-gray-300 dark:border-gray-600 py-2">
-    <label for="book-search" class="sr-only">Search books</label>
-    <input
-      id="book-search"
-      type="text"
-      [formField]="search.query"
-      (input)="searchChanged($event.target.value)"
-      placeholder="Search for books..."
-      class="appearance-none bg-transparent border-none w-full min-w-0 text-gray-700 dark:text-gray-200 mr-3 py-1 px-2 leading-tight rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700 dark:focus-visible:outline-blue-300"
-    />
-    @if (search.query().value()) {
-      <button
-        type="button"
-        aria-label="Clear search"
-        (click)="clearSearch()"
-        class="flex-shrink-0 text-gray-500 dark:text-gray-400 hover:text-gray-700 dark:hover:text-gray-100 rounded focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700 dark:focus-visible:outline-blue-300"
-      >
-        <svg aria-hidden="true" class="h-5 w-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-          <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12"></path>
-        </svg>
-      </button>
-    }
-  </div>
   @if (state$ | async; as state) {
     @switch (state.status) {
       @case ('loading') {

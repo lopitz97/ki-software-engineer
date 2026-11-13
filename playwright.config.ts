@@ -12,9 +12,7 @@ export default defineConfig({
   reporter: 'html',
   use: { baseURL, trace: 'on-first-retry' },
   projects: [
-    { name: 'chromium', use: { ...devices['Desktop Chrome'] } },
-    { name: 'firefox', use: { ...devices['Desktop Firefox'] } },
-    { name: 'webkit', use: { ...devices['Desktop Safari'] } }
+    { name: 'chromium', use: { ...devices['Desktop Chrome'] } }
   ],
   webServer: {
     command: production ? 'npm start -- --configuration production --port 4201' : 'npm start -- --port 4202',

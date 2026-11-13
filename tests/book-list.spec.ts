@@ -44,7 +44,7 @@ test('shows successful empty states for collection and search', async ({ page })
   await page.route(`${apiUrl}?*`, route => route.fulfill({ json: [] }));
   await page.goto('/');
   await expect(page.getByRole('status')).toHaveText('No books available');
-  await page.getByRole('textbox', { name: 'Search books' }).fill('missing');
+  await page.getByRole('textbox', { name: 'Search catalogue' }).fill('missing');
   await expect(page.getByRole('status')).toHaveText('No books match your search');
   await expect(page.getByRole('alert')).toHaveCount(0);
 });
@@ -63,7 +63,7 @@ test('failed searches hide old results, retry the query, and allow later searche
   });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: book.title, exact: true })).toBeVisible();
-  const input = page.getByRole('textbox', { name: 'Search books' });
+  const input = page.getByRole('textbox', { name: 'Search catalogue' });
   await input.fill('broken');
   await expect(page.getByRole('alert')).toBeVisible();
   await expect(page.getByRole('heading', { name: book.title, exact: true })).toHaveCount(0);
@@ -84,13 +84,9 @@ test('debounces typing and clears once immediately with keyboard accessible cont
   await page.goto('/');
   await expect(page.getByRole('heading', { name: book.title, exact: true })).toBeVisible();
   await page.keyboard.press('Tab');
-  await expect(page.getByRole('combobox', { name: 'Theme', exact: true })).toBeFocused();
+  await expect(page.getByRole('link', { name: 'BookMonkey home' })).toBeFocused();
   await page.keyboard.press('Tab');
-  const addBook = page.getByRole('link', { name: 'Add book', exact: true });
-  await expect(addBook).toBeFocused();
-  await expect(addBook).toHaveCSS('outline-style', 'solid');
-  await page.keyboard.press('Tab');
-  const input = page.getByRole('textbox', { name: 'Search books' });
+  const input = page.getByRole('textbox', { name: 'Search catalogue' });
   await expect(input).toBeFocused();
   await expect(input).toHaveCSS('outline-style', 'solid');
   await input.fill('pending');
@@ -105,6 +101,17 @@ test('debounces typing and clears once immediately with keyboard accessible cont
   await expect(page.getByRole('heading', { name: book.title, exact: true })).toBeVisible();
   await page.clock.runFor(1000);
   expect(queries).toEqual([null, null]);
+  await expect(input).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('button', { name: 'Search catalogue' })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('combobox', { name: 'Theme', exact: true })).toBeFocused();
+  await page.keyboard.press('Tab');
+  await expect(page.getByRole('navigation', { name: 'Categories' }).getByRole('link')).toBeFocused();
+  await page.keyboard.press('Tab');
+  const addBook = page.getByRole('link', { name: 'Add book', exact: true });
+  await expect(addBook).toBeFocused();
+  await expect(addBook).toHaveCSS('outline-style', 'solid');
 });
 
 test('cancels stale requests immediately and preserves the latest results', async ({ page }) => {
@@ -121,7 +128,7 @@ test('cancels stale requests immediately and preserves the latest results', asyn
   });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: book.title, exact: true })).toBeVisible();
-  const input = page.getByRole('textbox', { name: 'Search books' });
+  const input = page.getByRole('textbox', { name: 'Search catalogue' });
   const slowRequest = page.waitForRequest(request => new URL(request.url()).searchParams.get('q') === 'slow');
   await input.fill('slow');
   await page.clock.runFor(300);
@@ -154,7 +161,7 @@ test('destroys pending debounce when navigating away', async ({ page }) => {
   });
   await page.goto('/');
   await expect(page.getByRole('heading', { name: book.title, exact: true })).toBeVisible();
-  await page.getByRole('textbox', { name: 'Search books' }).fill('pending');
+  await page.getByRole('textbox', { name: 'Search catalogue' }).fill('pending');
   await page.evaluate(() => {
     history.pushState({}, '', '/books/book-1');
     window.dispatchEvent(new PopStateEvent('popstate'));
@@ -195,5 +202,5 @@ test('a failed cover does not carry over to the next detail route', async ({ pag
     window.dispatchEvent(new PopStateEvent('popstate'));
   });
   await expect(page.getByRole('img', { name: `Cover of ${book.title}` })).toBeVisible();
-  await expect(page.getByText('No cover available')).toHaveCount(0);
+  await expect(page.getByRole('article').getByText('No cover available')).toHaveCount(0);
 });

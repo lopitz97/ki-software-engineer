@@ -2,7 +2,7 @@
 
 ## Project at a glance
 
-BookMonkey is a single Angular 21 standalone browser application for an Angular workshop. The Bookmonkey API runs separately and is not implemented in this repository. Book state stays local to each screen; the persistent header owns the app-wide theme preference. There is no global store, cache, SSR, or repository/facade layer.
+BookMonkey is a single Angular 21 standalone browser application for an Angular workshop. The Bookmonkey API runs separately and is not implemented in this repository. Book results and request state stay local to each screen; a small BookSearch service shares the search draft and input events between the header and collection. The persistent header owns the app-wide theme preference. There is no global store, cache, SSR, or repository/facade layer.
 
 ## Repository map
 
@@ -27,7 +27,8 @@ src/
       book-api-url.ts             API base URL injection token
       book-api-client.service.ts  HTTP requests and response selection
       book-list.component.ts      Collection state and search events
-      book-list.component.html    Search, loading, error/retry, results, empty state
+      book-list.component.html    Loading, error/retry, results, empty state
+      book-search.service.ts      Shared header search draft and input events
       book-item.component.ts      Book card and detail link
       book-cover.component.ts     Cover image and missing/failed-image fallback
       book-details.component.ts   Route-driven detail state and retry
@@ -61,6 +62,19 @@ the wildcard redirect last. The static creation route precedes the ID route. All
 `loadComponent`. Details support direct links and refresh without requiring a loaded collection. The root App owns only
 persistent layout and its router outlet.
 
+The two-row header contains a linked BookMonkey wordmark, a rounded catalogue search field, the theme selector,
+and the only supported category, Bücher. Unsupported shop categories and account/cart controls are omitted.
+The header contains the only search input. Typing filters an open collection after 300 ms; clearing filters immediately.
+On other screens, typing only edits the draft. Submitting navigates to the collection with a `q` query parameter.
+The collection reads that parameter initially and after completed navigations, updates the shared draft, and resets
+pagination. Live edits and page changes do not update the URL; refreshing a submitted search restores its `q` value.
+Existing cancellation and retry behavior is retained. BookSearch has no HTTP logic or book results, and input events
+have no collection subscriber while another screen is open.
+The running Bookmonkey API and installed 5.0.1 package were checked: `/api-json` documents no category endpoint,
+`/categories` returns 404, and the book schema has no category or genre field. No additional categories are fabricated
+or speculative category requests made by the frontend.
+`tests/header.spec.ts` covers header navigation, search from details and collection, and mobile/desktop width.
+
 Unused NgRx, Angular Query, SSR, Express, Material, CDK, and animation dependencies were removed from the direct package declarations. The unused toast service and Material theme were removed together. Some packages, such as Express, may still appear as transitive development-tool dependencies.
 
 ## Component responsibilities
@@ -70,6 +84,7 @@ Unused NgRx, Angular Query, SSR, Express, Material, CDK, and animation dependenc
 | App                   | Persistent layout and router outlet                                     |
 | ThemeControlComponent | Header selection, saved preference, device changes, document appearance |
 | BookListComponent     | Local query/page events and loading/success/error state                 |
+| BookSearch            | Shared search draft and synchronous header input events                 |
 | BookItemComponent     | Presentation of a required book input and a detail link; no HTTP        |
 | BookCoverComponent    | Required URL/alternative-text inputs, image failure state and fallback  |
 | BookDetailsComponent  | Route ID and retry events, loading/success/not-found/error state        |
@@ -85,7 +100,7 @@ Book-specific behavior stays inside `books/`. Shared layers or state libraries s
 
 ```mermaid
 flowchart TD
-    Input[Search input / Signal Forms field] --> Events[Initial / query / clear / page / retry events]
+    Input[Header input / BookSearch service] --> Events[Initial / query / clear / page / retry events]
     Events --> Switch[Outer switchMap cancels previous delay and request]
     Switch --> Delay[Typed query: 300 ms; initial / clear / retry: immediate]
     Delay --> Client[BookApiClient.getBooksPage]
@@ -100,9 +115,9 @@ below successful results, including empty results. Previous is disabled on page 
 filtered total count shows no following page. `getBooksPage` reads `X-Total-Count`; if the header is missing or invalid, a
 full ten-book response allows another page. The API exposes the count header through CORS. There is no page-size selector.
 
-A Signal Forms model holds the search draft separately from the query and page captured in each state. The
-`FormField` directive binds the input to its field; native input events synchronously dispatch search requests into the
-same stream as page-navigation and explicit retry events. Clearing updates the field and dispatches immediately.
+BookSearch holds the search draft in a signal separately from the query and page captured in each state. The
+header binds the input to that signal; native input events synchronously dispatch through the service into the
+same collection stream as page-navigation and explicit retry events. Clearing updates the field and dispatches immediately.
 Changing or clearing the search resets to page one;
 page navigation retains the active query and retry retains both the failed query and page. Every accepted event enters an
 outer `switchMap` immediately, cancelling both a pending RxJS timer and an in-flight request. Nonempty typed queries wait
@@ -112,8 +127,9 @@ are suppressed, while explicit retries bypass that suppression.
 Every accepted event first emits loading and removes previous results. Only successful empty arrays show an empty message. Failures show an inline alert and retry for the failed query. Error handling stays inside the request branch, allowing later input to recover. A single async pipe owns the entire stream and disposes its timer and HTTP subscription when the screen is destroyed.
 
 Items are tracked by ID. Search input has a label, interactive controls have visible focus styling, and loading/empty states
-expose status semantics. The heading area offers an Add book link before the search input in keyboard order. Search and
-page are not stored in the URL or persisted; returning from details resets the collection to page one without a search.
+expose status semantics. The header search precedes the category navigation and collection's Add book link in keyboard order. Search and
+page are not synchronized back to the URL or persisted; returning from details resets the collection to page one without a search,
+unless the destination URL includes a header-search `q` parameter.
 
 ## Details and cover state
 
@@ -121,7 +137,7 @@ Details combine route-ID changes and retry events using `switchMap`. Superseded 
 
 Both screens use [BookCoverComponent](src/app/books/book-cover.component.ts). It renders a placeholder for missing or failed images and uses `linkedSignal` to reset failure state when its URL signal input changes. Covers use dynamic API URLs and ordinary image bindings. The details loading branch destroys its success view, so subsequent success creates a fresh cover. Request pipelines do not manage cover flags.
 
-Abstracts render through text interpolation with preserved line breaks. Prices retain the API's string value without an inferred currency. Each screen supplies its own single page heading; the app-shell brand is a paragraph.
+Abstracts render through text interpolation with preserved line breaks. Prices retain the API's string value without an inferred currency. Each screen supplies its own single page heading; the app-shell brand is a home link.
 
 ## Editing books
 

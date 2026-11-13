@@ -94,14 +94,14 @@ test('paginates search results and resets to page one when the query changes or 
   await expect(pagination(page)).toBeVisible();
   await pagination(page).getByRole('button', { name: nextName }).click();
   await expectPage(page, 2);
-  await page.getByRole('textbox', { name: 'Search books' }).fill('Angular');
+  await page.getByRole('textbox', { name: 'Search catalogue' }).fill('Angular');
   await expectPage(page, 1);
   await expect(page.getByRole('link', { name: /^View details for / })).toHaveCount(10);
   await pagination(page).getByRole('button', { name: nextName }).click();
   await expectPage(page, 2);
   await expect(page.getByRole('link', { name: /^View details for / })).toHaveCount(2);
   await expect(pagination(page).getByRole('button', { name: nextName })).toBeDisabled();
-  await page.getByRole('textbox', { name: 'Search books' }).fill('Workshop');
+  await page.getByRole('textbox', { name: 'Search catalogue' }).fill('Workshop');
   await expectPage(page, 1);
   await expect(page.getByRole('heading', { name: collection[12].title, exact: true })).toBeVisible();
   await pagination(page).getByRole('button', { name: nextName }).click();
@@ -137,7 +137,7 @@ test('retries the failed page with its current search instead of returning to th
   const api = await mockPaginatedBooks(page);
   await page.goto('/');
   await expect(pagination(page)).toBeVisible();
-  await page.getByRole('textbox', { name: 'Search books' }).fill('Angular');
+  await page.getByRole('textbox', { name: 'Search catalogue' }).fill('Angular');
   await expect.poll(() => api.requests.at(-1)?.query).toBe('Angular');
   await expectPage(page, 1);
   api.failNextSecondPage();
@@ -182,7 +182,7 @@ test('cancels an outstanding page request immediately when the search changes', 
     request => new URL(request.url()).searchParams.get('_page') === '2'
   );
   try {
-    await page.getByRole('textbox', { name: 'Search books' }).fill('Workshop');
+    await page.getByRole('textbox', { name: 'Search catalogue' }).fill('Workshop');
     await cancelled;
     await expect(page.getByRole('status')).toHaveText('Loading books...');
     await page.clock.runFor(300);
@@ -198,7 +198,7 @@ test('does not allow navigation beyond an empty search result', async ({ page })
   await mockPaginatedBooks(page);
   await page.goto('/');
   await expect(pagination(page)).toBeVisible();
-  await page.getByRole('textbox', { name: 'Search books' }).fill('no matching books');
+  await page.getByRole('textbox', { name: 'Search catalogue' }).fill('no matching books');
   await expect(page.getByRole('status')).toHaveText('No books match your search');
   await expectPage(page, 1);
   await expect(pagination(page).getByRole('button', { name: previousName })).toBeDisabled();
