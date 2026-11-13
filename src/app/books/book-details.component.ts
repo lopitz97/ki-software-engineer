@@ -17,13 +17,14 @@ import { Book } from './book';
 import { BookApiClient } from './book-api-client.service';
 import { BookCoverComponent } from './book-cover.component';
 import { BookEditComponent } from './book-edit.component';
+import { BookRecommendationsComponent } from './book-recommendations.component';
 
 type DetailsState = { status: 'loading' | 'not-found' | 'error' } | { status: 'success'; book: Book };
 
 @Component({
   selector: 'app-book-details',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AsyncPipe, RouterLink, BookCoverComponent, BookEditComponent],
+  imports: [AsyncPipe, RouterLink, BookCoverComponent, BookEditComponent, BookRecommendationsComponent],
   templateUrl: './book-details.component.html'
 })
 export class BookDetailsComponent {

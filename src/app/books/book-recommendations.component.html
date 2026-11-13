@@ -1,0 +1,68 @@
+<section aria-labelledby="recommendations-heading" class="mt-12 rounded-xl bg-gray-100 p-5 sm:p-8 dark:bg-gray-800">
+  <h2 id="recommendations-heading" class="mb-6 text-2xl sm:text-3xl font-bold text-gray-900 dark:text-gray-100">
+    Für Sie empfohlen
+  </h2>
+  @if (state$ | async; as state) {
+    @switch (state.status) {
+      @case ('loading') {
+        <p role="status" class="text-gray-600 dark:text-gray-300">Buchvorschläge werden geladen…</p>
+      }
+      @case ('error') {
+        <p role="status" class="text-gray-600 dark:text-gray-300">Buchvorschläge konnten nicht geladen werden.</p>
+        <button
+          type="button"
+          (click)="retry()"
+          class="mt-3 rounded text-blue-700 underline focus-visible:outline-2 focus-visible:outline-offset-4 dark:text-blue-300"
+        >
+          Erneut versuchen
+        </button>
+      }
+      @case ('success') {
+        @if (state.books.length) {
+          <ul #list aria-label="Buchvorschläge" class="flex gap-5 overflow-x-auto snap-x snap-mandatory pb-4">
+            @for (suggestion of state.books; track suggestion.id) {
+              <li class="w-40 sm:w-44 lg:w-[calc((100%-5rem)/5)] shrink-0 snap-start min-w-0">
+                <a
+                  [routerLink]="['/books', suggestion.id]"
+                  [attr.aria-label]="'Buchdetails: ' + suggestion.title"
+                  class="group block rounded-lg focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-700 dark:focus-visible:outline-blue-300"
+                >
+                  <div class="mb-3 h-56 rounded-xl bg-white p-3 dark:bg-gray-900">
+                    <app-book-cover [url]="suggestion.cover" [alt]="'Cover of ' + suggestion.title" />
+                  </div>
+                  <p class="text-sm text-gray-700 dark:text-gray-300 break-words">{{ suggestion.author }}</p>
+                  <h3 class="font-semibold text-gray-900 dark:text-gray-100 group-hover:underline break-words">
+                    {{ suggestion.title }}
+                  </h3>
+                  @if (suggestion.price) {
+                    <p class="mt-3 text-lg font-bold text-gray-900 dark:text-gray-100">{{ suggestion.price }}</p>
+                  }
+                </a>
+              </li>
+            }
+          </ul>
+          <div class="mt-5 flex justify-end gap-3">
+            <button
+              type="button"
+              aria-label="Vorherige Buchvorschläge"
+              (click)="scroll(list, -1)"
+              class="h-11 w-11 rounded-full border border-gray-400 bg-white text-2xl text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-4 dark:bg-gray-900 dark:text-gray-100"
+            >
+              ‹
+            </button>
+            <button
+              type="button"
+              aria-label="Weitere Buchvorschläge"
+              (click)="scroll(list, 1)"
+              class="h-11 w-11 rounded-full border border-gray-400 bg-white text-2xl text-gray-800 focus-visible:outline-2 focus-visible:outline-offset-4 dark:bg-gray-900 dark:text-gray-100"
+            >
+              ›
+            </button>
+          </div>
+        } @else {
+          <p class="text-gray-600 dark:text-gray-300">Zurzeit sind keine weiteren Buchvorschläge verfügbar.</p>
+        }
+      }
+    }
+  }
+</section>

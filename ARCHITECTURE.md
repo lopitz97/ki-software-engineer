@@ -270,6 +270,14 @@ existing notification job with `issues: write`. Creating PRs also requires the r
 
 ## Current limits and extension points
 
+Details include `BookRecommendationsComponent`, an independent recommendation section with loading, empty, and
+retryable error states. It loads up to 16 collection entries using `getBooks(16)`, excludes the current ID, prioritizes
+matching authors within that sample, and displays up to ten links with covers, authors, titles, and unchanged API prices.
+This is a collection-based suggestion list, not personalized recommendations. The responsive horizontal list supports
+touch, keyboard links, and previous/next scroll buttons. No ratings, currency, product formats, or wishlist data are
+invented. Input changes cancel superseded requests via `switchMap`; the async pipe cleans up on destruction.
+`tests/book-recommendations.spec.ts` covers selection, navigation, scrolling, failure/retry, empty results, and mobile width.
+
 - Search/page state resets on navigation; there is no shared cache or persisted query.
 - API data is trusted at runtime. Introduce boundary validation only if the external contract requires it.
 - There are no delete or authentication workflows.
