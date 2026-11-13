@@ -1,37 +1,64 @@
 <section class="bg-white dark:bg-gray-900 rounded-lg shadow-md p-6 text-gray-800 dark:text-gray-100">
-  <h1 class="text-3xl font-bold text-blue-700 dark:text-blue-300 mb-6">Edit book</h1>
-  <p class="mb-4">Title, author and pages are required.</p>
-  <p class="mb-6 break-words"><span class="font-semibold">ISBN:</span> {{ book().isbn }} (cannot be changed)</p>
-  <form [formGroup]="form" (ngSubmit)="save()" [attr.aria-busy]="saving()">
+  <h1 class="text-3xl font-bold text-blue-700 dark:text-blue-300 mb-6">
+    {{ initialBook() ? 'Edit book' : 'Add book' }}
+  </h1>
+  <p class="mb-4">
+    {{ initialBook() ? 'Title, author and pages are required.' : 'ISBN, title, author and pages are required.' }}
+  </p>
+  @if (initialBook(); as book) {
+    <p class="mb-6 break-words"><span class="font-semibold">ISBN:</span> {{ book.isbn }} (cannot be changed)</p>
+  }
+  <form [formGroup]="form" (ngSubmit)="submit()" [attr.aria-busy]="saving()">
     <fieldset [disabled]="saving()" class="min-w-0 grid grid-cols-1 md:grid-cols-2 gap-5">
       <legend class="sr-only">Book information</legend>
+      @if (!initialBook()) {
+        <div class="min-w-0 md:col-span-2">
+          <label for="book-isbn" class="block font-semibold mb-2">ISBN</label>
+          <input
+            id="book-isbn"
+            type="text"
+            formControlName="isbn"
+            required
+            [attr.aria-invalid]="form.controls.isbn.touched && form.controls.isbn.invalid"
+            [attr.aria-describedby]="
+              form.controls.isbn.touched && form.controls.isbn.invalid ? 'book-isbn-error' : null
+            "
+            class="w-full min-w-0 rounded border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 p-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 dark:focus-visible:outline-blue-300"
+          />
+          @if (form.controls.isbn.touched && form.controls.isbn.invalid) {
+            <p id="book-isbn-error" class="mt-2 text-red-700 dark:text-red-300">
+              ISBN is required and must contain text.
+            </p>
+          }
+        </div>
+      }
       @for (field of textFields; track field.key) {
         <div class="min-w-0">
-          <label [for]="'edit-' + field.key" class="block font-semibold mb-2">{{ field.label }}</label>
+          <label [for]="'book-' + field.key" class="block font-semibold mb-2">{{ field.label }}</label>
           <input
-            [id]="'edit-' + field.key"
+            [id]="'book-' + field.key"
             type="text"
             [formControlName]="field.key"
             [required]="field.required"
             [attr.aria-invalid]="form.controls[field.key].touched && form.controls[field.key].invalid"
             [attr.aria-describedby]="
               form.controls[field.key].touched && form.controls[field.key].invalid
-                ? 'edit-' + field.key + '-error'
+                ? 'book-' + field.key + '-error'
                 : null
             "
             class="w-full min-w-0 rounded border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 p-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 dark:focus-visible:outline-blue-300"
           />
           @if (form.controls[field.key].touched && form.controls[field.key].invalid) {
-            <p [id]="'edit-' + field.key + '-error'" class="mt-2 text-red-700 dark:text-red-300">
+            <p [id]="'book-' + field.key + '-error'" class="mt-2 text-red-700 dark:text-red-300">
               {{ field.label }} is required and must contain text.
             </p>
           }
         </div>
       }
       <div class="min-w-0">
-        <label for="edit-pages" class="block font-semibold mb-2">Pages</label>
+        <label for="book-pages" class="block font-semibold mb-2">Pages</label>
         <input
-          id="edit-pages"
+          id="book-pages"
           type="number"
           formControlName="numPages"
           required
@@ -39,46 +66,46 @@
           step="1"
           [attr.aria-invalid]="form.controls.numPages.touched && form.controls.numPages.invalid"
           [attr.aria-describedby]="
-            form.controls.numPages.touched && form.controls.numPages.invalid ? 'edit-pages-error' : null
+            form.controls.numPages.touched && form.controls.numPages.invalid ? 'book-pages-error' : null
           "
           class="w-full min-w-0 rounded border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 p-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 dark:focus-visible:outline-blue-300"
         />
         @if (form.controls.numPages.touched && form.controls.numPages.invalid) {
-          <p id="edit-pages-error" class="mt-2 text-red-700 dark:text-red-300">
+          <p id="book-pages-error" class="mt-2 text-red-700 dark:text-red-300">
             Pages are required and must be a whole number of zero or more.
           </p>
         }
       </div>
       <div class="min-w-0">
-        <label for="edit-price" class="block font-semibold mb-2">Price</label>
+        <label for="book-price" class="block font-semibold mb-2">Price</label>
         <input
-          id="edit-price"
+          id="book-price"
           type="number"
           formControlName="price"
           min="0"
           step="any"
           [attr.aria-invalid]="form.controls.price.touched && form.controls.price.invalid"
           [attr.aria-describedby]="
-            form.controls.price.touched && form.controls.price.invalid ? 'edit-price-error' : null
+            form.controls.price.touched && form.controls.price.invalid ? 'book-price-error' : null
           "
           class="w-full min-w-0 rounded border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 p-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 dark:focus-visible:outline-blue-300"
         />
         @if (form.controls.price.touched && form.controls.price.invalid) {
-          <p id="edit-price-error" class="mt-2 text-red-700 dark:text-red-300">Price must be zero or more.</p>
+          <p id="book-price-error" class="mt-2 text-red-700 dark:text-red-300">Price must be zero or more.</p>
         }
       </div>
       <div class="min-w-0 md:col-span-2">
-        <label for="edit-abstract" class="block font-semibold mb-2">Description</label>
+        <label for="book-abstract" class="block font-semibold mb-2">Description</label>
         <textarea
-          id="edit-abstract"
+          id="book-abstract"
           formControlName="abstract"
           rows="6"
           class="w-full min-w-0 rounded border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 p-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 dark:focus-visible:outline-blue-300"
         ></textarea>
       </div>
     </fieldset>
-    @if (saveError()) {
-      <p role="alert" class="mt-5 text-red-700 dark:text-red-300">Unable to save the book. Please try again.</p>
+    @if (error(); as message) {
+      <p role="alert" class="mt-5 text-red-700 dark:text-red-300">{{ message }}</p>
     }
     @if (saving()) {
       <p role="status" class="mt-5">Saving book...</p>

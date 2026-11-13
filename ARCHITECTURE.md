@@ -17,11 +17,13 @@ src/
   app/
     app.ts / app.html / app.css    Persistent header, router outlet, footer
     app.config.ts                 Router, HTTP, API URL, error and Zone.js providers
-    app.routes.ts                 Collection, detail, wildcard routes
+    app.routes.ts                 Collection, creation, detail, wildcard routes
     theme-control.component.ts    System/light/dark preference and document theme
     books/
       book.ts                     API response interface
       book-changes.ts             Editable fields and numeric write-price type
+      book-draft.ts               Creation fields including user-entered ISBN
+      book-page.ts                Page results and forward-navigation availability
       book-api-url.ts             API base URL injection token
       book-api-client.service.ts  HTTP requests and response selection
       book-list.component.ts      Collection state and search events
@@ -30,13 +32,17 @@ src/
       book-cover.component.ts     Cover image and missing/failed-image fallback
       book-details.component.ts   Route-driven detail state and retry
       book-details.component.html Detail states and metadata
-      book-edit.component.ts      Typed form, validation and lifetime-bound save
-      book-edit.component.html    Accessible editing form and save feedback
+      book-edit.component.ts      Shared-form wrapper and lifetime-bound update
+      book-form.component.ts      Shared creation/editing form and validation
+      book-form.component.html    Accessible fields and save/cancel feedback
+      book-create.component.ts    Creation request and navigation to returned ID
 public/                           Static build assets
 docs/                             README artwork
 tests/
   book-details.spec.ts            Details browser regression suite
   book-edit.spec.ts               Editing, validation, persistence and retry coverage
+  book-create.spec.ts             Creation, validation, duplicate ISBN and retry coverage
+  book-pagination.spec.ts         Page navigation, search reset, boundaries and cancellation
   book-list.spec.ts               Collection browser regression suite
   theme.spec.ts                   Theme behavior, persistence, and keyboard coverage
   support/books.ts                Shared fixtures, URLs, API and cover mocks
@@ -50,7 +56,10 @@ tsconfig*.json                    Strict application TypeScript settings
 
 [src/main.ts](src/main.ts) calls `bootstrapApplication(App, appConfig)`. Components are standalone with explicit template dependencies and `OnPush` change detection. Required presentation inputs use `input.required()`, services use `inject()`, and templates use native control flow. [app.config.ts](src/app/app.config.ts) provides the router, HTTP client, API base URL, browser global error listeners, and Zone.js change detection with event coalescing.
 
-[app.routes.ts](src/app/app.routes.ts) maps `/` to the collection and `/books/:id` to details, with the wildcard redirect last. Both screens are lazy-loaded with `loadComponent`. Details support direct links and refresh without requiring a loaded collection. The root App owns only persistent layout and its router outlet.
+[app.routes.ts](src/app/app.routes.ts) maps `/` to the collection, `/books/new` to creation and `/books/:id` to details, with
+the wildcard redirect last. The static creation route precedes the ID route. All screens are lazy-loaded with
+`loadComponent`. Details support direct links and refresh without requiring a loaded collection. The root App owns only
+persistent layout and its router outlet.
 
 Unused NgRx, Angular Query, SSR, Express, Material, CDK, and animation dependencies were removed from the direct package declarations. The unused toast service and Material theme were removed together. Some packages, such as Express, may still appear as transitive development-tool dependencies.
 
@@ -60,11 +69,13 @@ Unused NgRx, Angular Query, SSR, Express, Material, CDK, and animation dependenc
 | --------------------- | ----------------------------------------------------------------------- |
 | App                   | Persistent layout and router outlet                                     |
 | ThemeControlComponent | Header selection, saved preference, device changes, document appearance |
-| BookListComponent     | Local query events and loading/success/error state                      |
+| BookListComponent     | Local query/page events and loading/success/error state                 |
 | BookItemComponent     | Presentation of a required book input and a detail link; no HTTP        |
 | BookCoverComponent    | Required URL/alternative-text inputs, image failure state and fallback  |
 | BookDetailsComponent  | Route ID and retry events, loading/success/not-found/error state        |
-| BookEditComponent     | Local editing form, validation, saving/error state, save/cancel outputs |
+| BookFormComponent     | Shared typed fields, validation and submitted/cancelled outputs         |
+| BookEditComponent     | Existing-book save/error state and save/cancel outputs                  |
+| BookCreateComponent   | New-book save/error state and navigation using the returned ID          |
 | BookApiClient         | API URLs, query parameters, HTTP requests, exact-ID result selection    |
 | Book                  | Compile-time representation of the API response                         |
 
@@ -74,23 +85,33 @@ Book-specific behavior stays inside `books/`. Shared layers or state libraries s
 
 ```mermaid
 flowchart TD
-    Input[Search input / typed FormControl] --> Events[Initial / query / clear / retry events]
+    Input[Search input / typed FormControl] --> Events[Initial / query / clear / page / retry events]
     Events --> Switch[Outer switchMap cancels previous delay and request]
     Switch --> Delay[Typed query: 300 ms; initial / clear / retry: immediate]
-    Delay --> Client[BookApiClient.getBooks]
+    Delay --> Client[BookApiClient.getBooksPage]
     Client --> API[External Bookmonkey API]
     API --> State[Loading / success / error state]
     State --> Async[Single async-pipe subscription]
     Async --> Cards[Book cards and shared covers]
 ```
 
-The list loads immediately using the API client's default limit of 10. The old public `pageSize` input had no callers and was removed instead of exposing a setting that did not reload on changes.
+The list loads page one immediately, with a fixed size of ten books. Previous/Next controls and the current page appear
+below successful results, including empty results. Previous is disabled on page one; Next is disabled when the API's
+filtered total count shows no following page. `getBooksPage` reads `X-Total-Count`; if the header is missing or invalid, a
+full ten-book response allows another page. The API exposes the count header through CORS. There is no page-size selector.
 
-The non-nullable search `FormControl` holds the draft text separately from the query captured in each state. Its `valueChanges` merge with explicit retry events. Every change immediately enters an outer `switchMap`, cancelling both a pending RxJS timer and an in-flight request. Nonempty typed queries wait 300 ms; clearing, initial loading, and retry request immediately. Consecutive identical queries are suppressed, while explicit retries bypass that suppression.
+The non-nullable search `FormControl` holds the draft text separately from the query and page captured in each state. Its
+`valueChanges` merge with page-navigation and explicit retry events. Changing or clearing the search resets to page one;
+page navigation retains the active query and retry retains both the failed query and page. Every accepted event enters an
+outer `switchMap` immediately, cancelling both a pending RxJS timer and an in-flight request. Nonempty typed queries wait
+300 ms; clearing, initial loading, page navigation and retry request immediately. Consecutive identical query/page pairs
+are suppressed, while explicit retries bypass that suppression.
 
 Every accepted event first emits loading and removes previous results. Only successful empty arrays show an empty message. Failures show an inline alert and retry for the failed query. Error handling stays inside the request branch, allowing later input to recover. A single async pipe owns the entire stream and disposes its timer and HTTP subscription when the screen is destroyed.
 
-Items are tracked by ID. Search input has a label, interactive controls have visible focus styling, and loading/empty states expose status semantics. Search is not stored in the URL or persisted; returning from details resets the collection.
+Items are tracked by ID. Search input has a label, interactive controls have visible focus styling, and loading/empty states
+expose status semantics. The heading area offers an Add book link before the search input in keyboard order. Search and
+page are not stored in the URL or persisted; returning from details resets the collection to page one without a search.
 
 ## Details and cover state
 
@@ -104,7 +125,8 @@ Abstracts render through text interpolation with preserved line breaks. Prices r
 
 The details success view offers an **Edit book** button. It replaces the article with
 [BookEditComponent](src/app/books/book-edit.component.ts) at the same `/books/:id` URL; no new route or shared state is needed.
-The editor initializes a typed reactive form with title, subtitle, author, publisher, page count, price, cover URL and
+The editor uses [BookFormComponent](src/app/books/book-form.component.ts), which initializes a typed reactive form with
+title, subtitle, author, publisher, page count, price, cover URL and
 description. ISBN is displayed as immutable text, and technical IDs are not exposed as fields. Title and author must
 contain text; pages are required and must be a nonnegative integer. Price is optional and must be nonnegative when present.
 Inputs have labels, field-associated validation messages, responsive layout and light/dark styling.
@@ -122,21 +144,43 @@ stream. Cancel destroys the draft without a write and restores the original deta
 and destroys the editor; its save subscription uses `takeUntilDestroyed` so a late response cannot overwrite another screen.
 Cancelling a browser request cannot undo a write already accepted by the backend.
 
+## Creating books
+
+The collection's Add book link opens `/books/new`. [BookCreateComponent](src/app/books/book-create.component.ts) uses the
+same form and validation as editing, initialized with empty fields. Creation additionally exposes a required ISBN input;
+no checksum or length restriction is inferred. No technical ID or user identity is entered or fabricated.
+
+Valid submission calls `BookApiClient.createBook` with `POST <base>/books`. The inspected API returns status 201 and the
+created resource with its generated ID; the application opens `/books/:id` using that returned ID, not the ISBN. Cancel
+returns to the collection without a write. Saving prevents duplicate submissions. A failed request retains the draft and
+allows retry; status 409 displays duplicate-ISBN feedback so the user can correct that field. The shared form retains the
+editing screen's labels, error associations, numeric rules, theme styling and responsive layout. Both save wrappers tie
+subscriptions to their component lifetime.
+
 ## Backend boundary and deployment configuration
 
-[BookApiClient](src/app/books/book-api-client.service.ts) injects [BOOK_API_BASE_URL](src/app/books/book-api-url.ts), strips a trailing slash, and appends `/books`. Its read methods are `getBooks(pageSize = 10, searchTerm?)` and `getBook(id): Observable<Book>`:
+[BookApiClient](src/app/books/book-api-client.service.ts) injects [BOOK_API_BASE_URL](src/app/books/book-api-url.ts), strips a
+trailing slash and appends `/books`. The collection uses `getBooksPage(page, searchTerm?): Observable<BookPage>`, while details
+use `getBook(id): Observable<Book>`. The older `getBooks(pageSize = 10, searchTerm?)` array-returning method remains available:
 
 ```text
 GET <base>/books?_limit=10
 GET <base>/books?_limit=10&q=<search term>
+GET <base>/books?_limit=10&_page=<1-based page>&q=<optional search term>
 GET <base>/books?id=<encoded book ID>
+POST <base>/books
+PUT <base>/books/<encoded ISBN>
 ```
 
 [app.config.ts](src/app/app.config.ts) supplies the token from the selected environment. Development replaces [environment.ts](src/environments/environment.ts) with [environment.development.ts](src/environments/environment.development.ts), using `http://localhost:4730`. Production defaults to same-origin `/api`, so the deployment must reverse-proxy `/api/books` to the external backend's `/books`, stripping the `/api` prefix, or change the production base URL before building. This repository does not provide that reverse proxy. For a cross-origin URL, the backend must allow the frontend origin through CORS. There is no authentication or interceptor.
 
 The backend's single-resource `/books/:isbn` endpoint accepts ISBN rather than the model's ID. Detail lookup intentionally requests the ID-filtered collection, selects the exact ID match, and raises an HTTP 404 error when absent. `HttpParams` encodes query values. The frontend route remains `/books/:id`.
 
-`_limit` controls result count; there is no pagination UI or offset. The backend determines `q` search semantics. [Book](src/app/books/book.ts) represents the response directly, including string IDs and prices, an optional subtitle, and numeric page counts/user IDs. HTTP generics provide compile-time typing, not runtime validation.
+`_limit` controls page size and `_page` selects a one-based page. The backend applies `q` filtering before pagination and
+provides the filtered total in `X-Total-Count`; it determines search semantics. [Book](src/app/books/book.ts) is the existing
+response interface, including string IDs and prices, an optional subtitle and numeric page counts/user IDs. The inspected
+API 5.0.1 additionally has optional fields and numeric prices; write models use a numeric optional price and do not invent
+those unexposed fields. HTTP generics provide compile-time typing, not runtime validation.
 
 ## Styling, build, and tests
 
@@ -170,6 +214,11 @@ The editing suite covers keyboard entry, all prefilled editable fields, ISBN/ID 
 reload, optional-field clearing, cancellation, required fields, nonnegative numeric values, and save failure/retry with draft
 retention. Its per-test stateful mock distinguishes ID-filtered reads from ISBN-based PUT/PATCH writes. Backend schema and
 durability are not verified by mocked browser tests.
+
+Creation coverage exercises empty forms, all-field and required-only submissions, generated-ID navigation and reload,
+cancel, validation, retry and duplicate ISBN correction. Pagination coverage exercises fixed-size pages, boundaries,
+paginated searches, reset on query change/clear, retry of the same page/query and immediate cancellation of stale requests.
+The collection keyboard test includes the new Add book stop while retaining its search and clear-control focus checks.
 
 The theme suite covers both device appearances, live device changes, manual overrides, returning to System, persistence across refresh and a new browser context restored from real saved storage, keyboard selection, and dark loading/empty/error states on both routes. It checks rendered backgrounds rather than relying on a particular CSS class. These automated checks do not constitute a complete visual contrast audit.
 
@@ -213,9 +262,9 @@ existing notification job with `issues: write`. Creating PRs also requires the r
 
 ## Current limits and extension points
 
-- Search state resets on navigation; there is no shared cache or persisted query.
+- Search/page state resets on navigation; there is no shared cache or persisted query.
 - API data is trusted at runtime. Introduce boundary validation only if the external contract requires it.
-- There are no create, delete, authentication, or pagination workflows.
+- There are no delete or authentication workflows.
 - Mocked tests verify frontend behavior and configured URLs, not a live backend or production reverse proxy.
 
 Start with `main.ts`, `app.config.ts`, and `app.routes.ts`, then follow each screen into the API client and presentation components. Keep HTTP details in the client and screen state local. Update this guide when changing routes, responsibilities, state, API contracts, or test setup.

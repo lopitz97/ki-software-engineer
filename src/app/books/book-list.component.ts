@@ -1,6 +1,7 @@
 import { AsyncPipe } from '@angular/common';
 import { ChangeDetectionStrategy, Component, inject } from '@angular/core';
 import { FormControl, ReactiveFormsModule } from '@angular/forms';
+import { RouterLink } from '@angular/router';
 import {
   catchError,
   distinctUntilChanged,
@@ -18,14 +19,14 @@ import { BookApiClient } from './book-api-client.service';
 import { BookItemComponent } from './book-item.component';
 
 type CollectionState =
-  | { status: 'loading' | 'error'; query: string }
-  | { status: 'success'; query: string; books: Book[] };
-type SearchRequest = { query: string; debounce: boolean; retry?: boolean };
+  | { status: 'loading' | 'error'; query: string; page: number }
+  | { status: 'success'; query: string; page: number; books: Book[]; hasNext: boolean };
+type SearchRequest = { query: string; page: number; debounce: boolean; retry?: boolean };
 
 @Component({
   selector: 'app-book-list',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [AsyncPipe, ReactiveFormsModule, BookItemComponent],
+  imports: [AsyncPipe, ReactiveFormsModule, RouterLink, BookItemComponent],
   templateUrl: './book-list.component.html'
 })
 export class BookListComponent {
@@ -34,18 +35,20 @@ export class BookListComponent {
   readonly search = new FormControl('', { nonNullable: true });
 
   readonly state$: Observable<CollectionState> = merge(
-    this.search.valueChanges.pipe(map((query): SearchRequest => ({ query, debounce: query !== '' }))),
+    this.search.valueChanges.pipe(map((query): SearchRequest => ({ query, page: 1, debounce: query !== '' }))),
     this.requests
   ).pipe(
-    startWith<SearchRequest>({ query: '', debounce: false }),
-    distinctUntilChanged((previous, current) => !current.retry && previous.query === current.query),
+    startWith<SearchRequest>({ query: '', page: 1, debounce: false }),
+    distinctUntilChanged(
+      (previous, current) => !current.retry && previous.query === current.query && previous.page === current.page
+    ),
     // Cancel both the pending delay and HTTP request as soon as the input changes.
-    switchMap(({ query, debounce }) =>
+    switchMap(({ query, page, debounce }) =>
       (debounce ? timer(300) : of(0)).pipe(
-        switchMap(() => this.api.getBooks(undefined, query)),
-        map((books): CollectionState => ({ status: 'success', query, books })),
-        catchError(() => of<CollectionState>({ status: 'error', query })),
-        startWith<CollectionState>({ status: 'loading', query })
+        switchMap(() => this.api.getBooksPage(page, query)),
+        map((result): CollectionState => ({ status: 'success', query, page, ...result })),
+        catchError(() => of<CollectionState>({ status: 'error', query, page })),
+        startWith<CollectionState>({ status: 'loading', query, page })
       )
     )
   );
@@ -54,7 +57,12 @@ export class BookListComponent {
     this.search.setValue('');
   }
 
-  retry(query: string): void {
-    this.requests.next({ query, debounce: false, retry: true });
+  changePage(query: string, page: number): void {
+    if (page < 1) return;
+    this.requests.next({ query, page, debounce: false });
+  }
+
+  retry(query: string, page: number): void {
+    this.requests.next({ query, page, debounce: false, retry: true });
   }
 }

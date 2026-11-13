@@ -86,6 +86,10 @@ test('debounces typing and clears once immediately with keyboard accessible cont
   await page.keyboard.press('Tab');
   await expect(page.getByRole('combobox', { name: 'Theme', exact: true })).toBeFocused();
   await page.keyboard.press('Tab');
+  const addBook = page.getByRole('link', { name: 'Add book', exact: true });
+  await expect(addBook).toBeFocused();
+  await expect(addBook).toHaveCSS('outline-style', 'solid');
+  await page.keyboard.press('Tab');
   const input = page.getByRole('textbox', { name: 'Search books' });
   await expect(input).toBeFocused();
   await expect(input).toHaveCSS('outline-style', 'solid');
