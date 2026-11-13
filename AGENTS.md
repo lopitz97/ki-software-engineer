@@ -32,22 +32,22 @@ Before changing the application, read [README.md](README.md) for setup and [ARCH
 
 Run commands from the repository root:
 
-| Command                                          | Purpose                                                                         |
-| ------------------------------------------------ | ------------------------------------------------------------------------------- |
-| `npm install`                                    | Install dependencies when needed                                                |
-| `npm start`                                      | Start Angular at `http://localhost:4200`                                        |
-| `npx bookmonkey-api`                             | Start the separate API at `http://localhost:4730` for manual integration checks |
-| `npm run build`                                  | Run the production build and configured bundle budgets                          |
-| `npx playwright test tests/book-details.spec.ts` | Run the existing application-specific browser suite                             |
-| `npx prettier --check <changed-files>`           | Check formatting for explicit changed file paths                                |
+| Command                                                             | Purpose                                                                         |
+| ------------------------------------------------------------------- | ------------------------------------------------------------------------------- |
+| `npm install`                                                       | Install dependencies when needed                                                |
+| `npm start`                                                         | Start Angular at `http://localhost:4200`                                        |
+| `npx bookmonkey-api`                                                | Start the separate API at `http://localhost:4730` for manual integration checks |
+| `npm run build`                                                     | Run the production build and configured bundle budgets                          |
+| `npx playwright test tests/book-details.spec.ts --project=chromium` | Run a focused browser suite                                                     |
+| `npx prettier --check <changed-files>`                              | Check formatting for explicit changed file paths                                |
 
 On Windows PowerShell, use `npm.cmd` or `npx.cmd` if script execution policy blocks the `.ps1` wrappers. Do not change machine execution policy to run these commands.
 
 ## Validation and handoff
 
 - For application or build configuration changes, run `npm run build`. Run the relevant Playwright tests for changes to behavior covered by them; add focused regression coverage for new behavior or bug fixes.
-- The details suite mocks backend responses. Playwright starts or reuses the frontend server; it does not start the API. Browser binaries must be installed separately if missing.
-- `npm test` points to an incomplete Karma/Jasmine setup. Do not report unit tests as passing without actually completing and running that setup. See `ARCHITECTURE.md` for the testing gaps.
+- Browser suites mock backend responses. Playwright starts a dedicated frontend server on port 4202; it does not start the API. The current configuration runs Chromium. Browser binaries must be installed separately if missing.
+- Use the Playwright-native `given` / `when` / `then` helpers in `tests/support/bdd.ts` for behavior-driven scenarios. There is no Angular unit-test runner; see `ARCHITECTURE.md` for the testing scope and limitations.
 - For documentation-only changes, check formatting, local links, and `git diff --check`; an application build is unnecessary.
 - Update `ARCHITECTURE.md` when changing routes, responsibilities, API contracts, state management, or test setup. Update `README.md` when setup or developer commands change. Keep detailed design explanations in those documents rather than duplicating them here.
 - Report what changed, which checks ran and their results, and any material limitations or checks you could not run.

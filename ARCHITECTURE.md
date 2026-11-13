@@ -216,19 +216,27 @@ The declared toolchain is Angular 21.2, TypeScript 5.9, and RxJS 7.8. [tsconfig.
 
 [The issue-analysis workflow](.github/workflows/issue-analysis.yml) creates a dedicated Codex home in the runner's temporary directory and writes a `github-issues` permission profile to its `config.toml`. The profile extends `:workspace` and enables the network proxy with access to `api.github.com`. The action selects that profile with `drop-sudo`, using the configured OpenAI API key secret for Codex and the built-in GitHub token as `GH_TOKEN` with `issues: write`. The `clarify-feature` skill reads the issue and comments through GitHub CLI, assesses suitable labels against the repository's current label catalog, and adds missing matches while preserving existing labels. It reuses matching labels and creates missing reusable labels with descriptions and colors when needed; it does not remove labels. It maintains unresolved clarification questions or a requirements story in one analysis comment, identified by the hidden marker `<!-- clarify-feature:analysis -->` and publishing author. Later runs update that comment by ID; a clearly identifiable older analysis comment can be migrated by adding the marker. Unrelated comments remain untouched. Publication and label additions are verified separately. Issue openings, edits, and human comments trigger analysis; bot comments and pull-request comments are excluded. This workflow does not implement features or change issue bodies or state.
 
-| Command                                | Purpose                                        |
-| -------------------------------------- | ---------------------------------------------- |
-| `npm install`                          | Install dependencies                           |
-| `npm start`                            | Serve development frontend at localhost:4200   |
-| `npx bookmonkey-api`                   | Run the separate backend at localhost:4730     |
-| `npm run build`                        | Production build using the /api endpoint       |
-| `npm run watch`                        | Development build in watch mode                |
-| `npx playwright install`               | Install Chromium, Firefox, and WebKit binaries |
-| `npm test` or `npm run test:e2e`       | Run application browser regression suites      |
-| `npm test -- --project=chromium`       | Run only Chromium                              |
-| `npx prettier --check <changed-files>` | Check explicit changed paths                   |
+| Command                                | Purpose                                      |
+| -------------------------------------- | -------------------------------------------- |
+| `npm install`                          | Install dependencies                         |
+| `npm start`                            | Serve development frontend at localhost:4200 |
+| `npx bookmonkey-api`                   | Run the separate backend at localhost:4730   |
+| `npm run build`                        | Production build using the /api endpoint     |
+| `npm run watch`                        | Development build in watch mode              |
+| `npx playwright install chromium`      | Install the configured Chromium binary       |
+| `npm test` or `npm run test:e2e`       | Run application browser regression suites    |
+| `npm test -- --project=chromium`       | Run only Chromium                            |
+| `npx prettier --check <changed-files>` | Check explicit changed paths                 |
 
 Playwright starts a dedicated frontend server at localhost:4202 and supplies a baseURL. It refuses to reuse an existing server so stale application code cannot silently pass the suite. API and cover requests are mocked before navigation; tests do not require the live backend or external websites. Shared fixtures/mocks live in `tests/support/books.ts`. The external Playwright starter suite was removed; the TodoMVC demo remains outside the configured `tests/` directory.
+
+All application scenarios use Playwright's native `test.step` through `given`, `when`, and `then` helpers in
+`tests/support/bdd.ts`; no Gherkin parser or Cucumber dependency is needed. Titles briefly describe the tested behavior
+without Given / When / Then prefixes. Each scenario records named context, action, and outcome steps in the HTML
+report's Test Steps section, including parameterized validation, viewport, and theme cases. Multi-stage behavior uses
+additional When / Then pairs for retry, correction, navigation, or reload. The shared helpers preserve typed return
+values so setup state can be passed between phases without weakening TypeScript checks. The configured browser
+project remains Chromium only, and the scenarios retain their existing mocked API boundaries.
 
 The collection suite covers failure/retry/recovery, successful empty states, keyboard names and focus, debounce/clear behavior, immediate request cancellation, stale results, destruction cleanup, and cover fallbacks. Controlled response promises and Playwright's browser clock avoid fixed sleeps. Details coverage retains direct links/refresh, metadata, literal text, missing content, broken covers, loading, not-found, retry, encoded IDs, route cancellation, and mobile/desktop layout.
 
@@ -248,7 +256,7 @@ The theme suite covers both device appearances, live device changes, manual over
 
 For production-configuration coverage, set `BOOKMONKEY_TEST_PRODUCTION=1` before running Playwright. The server uses the production configuration at localhost:4201, and mocks target same-origin `/api/books`. This checks both collection and detail URL construction against the alternate configured provider without a live reverse proxy. Unset the variable afterward. See README for PowerShell commands.
 
-The incomplete Karma target and Jasmine tsconfig were removed. `npm test` now runs actual browser coverage; no Angular unit-test runner is configured.
+`npm test` runs actual browser coverage; no Angular unit-test runner is configured.
 
 ## Local Angular MCP server
 

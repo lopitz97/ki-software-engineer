@@ -27,9 +27,20 @@ The application uses Angular 21.2 and TypeScript 5.9. Use Node.js 20.19+, 22.12+
 
 ## Validation
 
-Run `npm run build` for a production build. Install browser binaries once with `npx playwright install`, then run `npm test` (or `npm run test:e2e`) for Chromium, Firefox, and WebKit. Use `npm test -- --project=chromium` for a focused run. Tests start a dedicated frontend on port 4202 and mock the API; the backend does not need to run. No unit-test runner is configured.
+Run `npm run build` for a production build. Install the configured browser once with `npx playwright install chromium`, then run `npm test` (or `npm run test:e2e`). The current Playwright configuration runs Chromium; use `npm test -- --project=chromium` for a focused run. Tests start a dedicated frontend on port 4202 and mock the API; the backend does not need to run. There is no unit-test runner.
 
 On PowerShell, use `npm.cmd` / `npx.cmd` if execution policy blocks the script wrappers.
+
+### Behavior-driven browser tests
+
+All application scenarios use Playwright-native Given / When / Then steps, without Cucumber or `.feature` files.
+Scenario titles briefly describe the behavior without Given / When / Then prefixes. Inside each scenario, `given`, `when`, and `then` from
+[tests/support/bdd.ts](tests/support/bdd.ts) create named `test.step` entries for context, actions, and outcomes.
+Retries, corrections, navigation, and reloads use additional When / Then pairs rather than hiding actions in assertions.
+Existing API mocks remain in place; these scenarios do not verify a live backend.
+
+Run `npm test` for a fresh HTML report, then `npx playwright show-report` to inspect it. Select a scenario and expand
+**Test Steps** to see its Given / When / Then phases and nested browser actions/assertions.
 
 To test the production API configuration on port 4201 in PowerShell:
 
