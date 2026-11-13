@@ -249,3 +249,87 @@ test('explains a duplicate ISBN, preserves the draft and allows correcting the I
   expect(api.writes).toHaveLength(2);
   expect(api.stored).toHaveLength(2);
 });
+
+for (const field of ['isbn', 'title', 'author'] as const) {
+  test(`rejects whitespace-only ${field} and accepts corrected text`, async ({ page }) => {
+    const api = await mockCreation(page);
+    await openCreation(page);
+    await fillDraft(page);
+    const input = page.getByLabel(fieldLabels[field], { exact: true });
+    await input.fill('   ');
+    await page.getByRole('button', { name: saveName }).click();
+    await expect(input).toHaveAttribute('aria-invalid', 'true');
+    await expect(input).toHaveAccessibleDescription(/required.*text/i);
+    expect(api.writes).toHaveLength(0);
+    await input.fill(draft[field]);
+    await page.getByRole('button', { name: saveName }).click();
+    await expect(page).toHaveURL(`${appUrl}/books/${createdId}`);
+    expect(api.writes).toHaveLength(1);
+  });
+}
+
+test('marks untouched required fields on submit and retains the blank draft', async ({ page }) => {
+  const api = await mockCreation(page);
+  await openCreation(page);
+  await page.getByRole('button', { name: saveName }).click();
+  for (const field of ['isbn', 'title', 'author', 'numPages'] as const) {
+    const input = page.getByLabel(fieldLabels[field], { exact: true });
+    await expect(input).toHaveValue('');
+    await expect(input).toHaveAttribute('aria-invalid', 'true');
+    await expect(input).toHaveAccessibleDescription(/required/i);
+  }
+  expect(api.writes).toHaveLength(0);
+});
+
+test('rejects fractional pages while accepting a fractional price', async ({ page }) => {
+  const api = await mockCreation(page);
+  await openCreation(page);
+  await fillDraft(page, { ...draft, numPages: 1.5 });
+  const pages = page.getByLabel(fieldLabels.numPages, { exact: true });
+  await page.getByRole('button', { name: saveName }).click();
+  await expect(pages).toHaveAttribute('aria-invalid', 'true');
+  await expect(pages).toHaveAccessibleDescription(/whole number/i);
+  expect(api.writes).toHaveLength(0);
+  await pages.fill('2');
+  await page.getByRole('button', { name: saveName }).click();
+  await expect(page).toHaveURL(`${appUrl}/books/${createdId}`);
+  expect(api.writes[0]).toMatchObject({ numPages: 2, price: draft.price });
+});
+
+test('disables fields and actions while saving and restores the draft after failure', async ({ page }) => {
+  await mockCreation(page);
+  let release!: () => void;
+  const response = new Promise<void>(resolve => {
+    release = resolve;
+  });
+  let writes = 0;
+  await page.route(
+    url => url.origin + url.pathname === apiUrl,
+    async route => {
+      if (route.request().method() !== 'POST') return route.fallback();
+      writes++;
+      await response;
+      await route.fulfill({ status: 500, json: 'Unable to create book' });
+    }
+  );
+  await openCreation(page);
+  await fillDraft(page);
+  const save = page.getByRole('button', { name: saveName });
+  await save.click();
+  await expect(page.getByRole('status')).toHaveText('Saving book...');
+  for (const label of Object.values(fieldLabels)) {
+    await expect(page.getByLabel(label, { exact: true })).toBeDisabled();
+  }
+  await expect(save).toBeDisabled();
+  await expect(page.getByRole('button', { name: /^Cancel$/i })).toBeDisabled();
+  await page.locator('form').evaluate(form => (form as HTMLFormElement).requestSubmit());
+  release();
+  await expect(page.getByRole('alert')).toBeVisible();
+  expect(writes).toBe(1);
+  for (const [field, value] of Object.entries(draft)) {
+    const input = page.getByLabel(fieldLabels[field as Field], { exact: true });
+    await expect(input).toBeEditable();
+    await expect(input).toHaveValue(String(value));
+  }
+  await expect(save).toBeEnabled();
+});

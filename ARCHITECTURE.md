@@ -2,7 +2,7 @@
 
 ## Project at a glance
 
-BookMonkey is a single Angular 20 standalone browser application for an Angular workshop. The Bookmonkey API runs separately and is not implemented in this repository. Book state stays local to each screen; the persistent header owns the app-wide theme preference. There is no global store, cache, SSR, or repository/facade layer.
+BookMonkey is a single Angular 21 standalone browser application for an Angular workshop. The Bookmonkey API runs separately and is not implemented in this repository. Book state stays local to each screen; the persistent header owns the app-wide theme preference. There is no global store, cache, SSR, or repository/facade layer.
 
 ## Repository map
 
@@ -85,7 +85,7 @@ Book-specific behavior stays inside `books/`. Shared layers or state libraries s
 
 ```mermaid
 flowchart TD
-    Input[Search input / typed FormControl] --> Events[Initial / query / clear / page / retry events]
+    Input[Search input / Signal Forms field] --> Events[Initial / query / clear / page / retry events]
     Events --> Switch[Outer switchMap cancels previous delay and request]
     Switch --> Delay[Typed query: 300 ms; initial / clear / retry: immediate]
     Delay --> Client[BookApiClient.getBooksPage]
@@ -100,8 +100,10 @@ below successful results, including empty results. Previous is disabled on page 
 filtered total count shows no following page. `getBooksPage` reads `X-Total-Count`; if the header is missing or invalid, a
 full ten-book response allows another page. The API exposes the count header through CORS. There is no page-size selector.
 
-The non-nullable search `FormControl` holds the draft text separately from the query and page captured in each state. Its
-`valueChanges` merge with page-navigation and explicit retry events. Changing or clearing the search resets to page one;
+A Signal Forms model holds the search draft separately from the query and page captured in each state. The
+`FormField` directive binds the input to its field; native input events synchronously dispatch search requests into the
+same stream as page-navigation and explicit retry events. Clearing updates the field and dispatches immediately.
+Changing or clearing the search resets to page one;
 page navigation retains the active query and retry retains both the failed query and page. Every accepted event enters an
 outer `switchMap` immediately, cancelling both a pending RxJS timer and an in-flight request. Nonempty typed queries wait
 300 ms; clearing, initial loading, page navigation and retry request immediately. Consecutive identical query/page pairs
@@ -125,11 +127,15 @@ Abstracts render through text interpolation with preserved line breaks. Prices r
 
 The details success view offers an **Edit book** button. It replaces the article with
 [BookEditComponent](src/app/books/book-edit.component.ts) at the same `/books/:id` URL; no new route or shared state is needed.
-The editor uses [BookFormComponent](src/app/books/book-form.component.ts), which initializes a typed reactive form with
+The editor uses [BookFormComponent](src/app/books/book-form.component.ts), which initializes a typed Signal Forms model with
 title, subtitle, author, publisher, page count, price, cover URL and
 description. ISBN is displayed as immutable text, and technical IDs are not exposed as fields. Title and author must
 contain text; pages are required and must be a nonnegative integer. Price is optional and must be nonnegative when present.
-Inputs have labels, field-associated validation messages, responsive layout and light/dark styling.
+Inputs use `FormField` bindings with labels, field-associated validation messages, responsive layout and light/dark styling.
+The schema applies required/non-whitespace text checks, minimum numeric values and a whole-number page check.
+`FormRoot` marks fields touched on submission and emits a draft only when valid. Empty numeric inputs remain `null`;
+submission converts an empty optional price to `undefined`. The saving input disables the form through schema logic.
+Signal Forms (`@angular/forms/signals`) is experimental in Angular 21.2; future Angular updates may require API changes.
 
 Save calls `BookApiClient.updateBook` using the existing book and editable changes. It sends `PUT <base>/books/:isbn`,
 encoding the ISBN and excluding the response ID from the body. The existing resource fields are retained, including ISBN
@@ -190,7 +196,7 @@ Tailwind CSS 4 supplies application styling through [src/styles.css](src/styles.
 
 The component stores the preference and device appearance in signals, derives the resolved appearance with `computed()`, and applies the `dark` class and native `color-scheme` to the document root through a component-lifetime effect. Tailwind's custom `dark` variant follows that class, allowing a manual light override even when the device is dark. Root colors and dark utilities cover the header, footer, collection, detail cards, covers, controls, and loading/empty/error states. Theme state requires no backend changes or shared state library.
 
-The declared toolchain is Angular 20.2, TypeScript 5.9, and RxJS 7.8. [tsconfig.json](tsconfig.json) preserves strict TypeScript and template checks. Production builds use bundle budgets and output hashing; development enables source maps and disables optimization. Public assets are copied to the output. There is no application build or test CI pipeline in the repository.
+The declared toolchain is Angular 21.2, TypeScript 5.9, and RxJS 7.8. [tsconfig.json](tsconfig.json) preserves strict TypeScript and template checks. Production builds use bundle budgets and output hashing; development enables source maps and disables optimization. Public assets are copied to the output. There is no application build or test CI pipeline in the repository.
 
 [The issue-analysis workflow](.github/workflows/issue-analysis.yml) creates a dedicated Codex home in the runner's temporary directory and writes a `github-issues` permission profile to its `config.toml`. The profile extends `:workspace` and enables the network proxy with access to `api.github.com`. The action selects that profile with `drop-sudo`, using the configured OpenAI API key secret for Codex and the built-in GitHub token as `GH_TOKEN` with `issues: write`. The `clarify-feature` skill reads the issue and comments through GitHub CLI, assesses suitable labels against the repository's current label catalog, and adds missing matches while preserving existing labels. It reuses matching labels and creates missing reusable labels with descriptions and colors when needed; it does not remove labels. It maintains unresolved clarification questions or a requirements story in one analysis comment, identified by the hidden marker `<!-- clarify-feature:analysis -->` and publishing author. Later runs update that comment by ID; a clearly identifiable older analysis comment can be migrated by adding the marker. Unrelated comments remain untouched. Publication and label additions are verified separately. Issue openings, edits, and human comments trigger analysis; bot comments and pull-request comments are excluded. This workflow does not implement features or change issue bodies or state.
 
@@ -216,7 +222,9 @@ retention. Its per-test stateful mock distinguishes ID-filtered reads from ISBN-
 durability are not verified by mocked browser tests.
 
 Creation coverage exercises empty forms, all-field and required-only submissions, generated-ID navigation and reload,
-cancel, validation, retry and duplicate ISBN correction. Pagination coverage exercises fixed-size pages, boundaries,
+cancel, validation, retry and duplicate ISBN correction. Signal Forms regression cases cover whitespace-only required
+text, untouched-field errors on submission, fractional pages versus prices, and disabled fields/actions during a pending
+save with draft restoration after failure. Pagination coverage exercises fixed-size pages, boundaries,
 paginated searches, reset on query change/clear, retry of the same page/query and immediate cancellation of stale requests.
 The collection keyboard test includes the new Add book stop while retaining its search and clear-control focus checks.
 
@@ -236,7 +244,7 @@ The `run_migration` tool delegates to [migrations.ts](tools/angular-mcp/migratio
 selects `code` (`ng generate @angular/core:<migration>`) or `version` (`ng update <package> --migrate-only`).
 Code migrations accept a workspace-relative path, a dry run, and an optional standalone phase. Version migrations
 accept an installed package, starting and optional target version, optional migration name, and explicit dirty-tree
-opt-in. They do not install or upgrade dependencies. Available code migrations match the installed Angular 20 CLI.
+opt-in. They do not install or upgrade dependencies. Available code migrations match the installed Angular 21 CLI.
 
 The migration runner invokes the local CLI JavaScript entry point with Node and an argument array, without a shell
 or automatic CLI download (`NG_DISABLE_VERSION_CHECK=true`). It runs from the workspace root, disables interactive prompts and analytics, limits execution

@@ -18,6 +18,8 @@ BookMonkey is a standalone Angular application organized around a books feature,
 
 ## Local Development
 
+The application uses Angular 21.2 and TypeScript 5.9. Use Node.js 20.19+, 22.12+, or 24+ as required by Angular 21.
+
 | Command       | Description                                      |
 | ------------- | ------------------------------------------------ |
 | `npm install` | Installs the packages to develop the Angular app |

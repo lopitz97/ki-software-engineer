@@ -8,7 +8,7 @@
   @if (initialBook(); as book) {
     <p class="mb-6 break-words"><span class="font-semibold">ISBN:</span> {{ book.isbn }} (cannot be changed)</p>
   }
-  <form [formGroup]="form" (ngSubmit)="submit()" [attr.aria-busy]="saving()">
+  <form [formRoot]="form" [attr.aria-busy]="saving()">
     <fieldset [disabled]="saving()" class="min-w-0 grid grid-cols-1 md:grid-cols-2 gap-5">
       <legend class="sr-only">Book information</legend>
       @if (!initialBook()) {
@@ -17,15 +17,12 @@
           <input
             id="book-isbn"
             type="text"
-            formControlName="isbn"
-            required
-            [attr.aria-invalid]="form.controls.isbn.touched && form.controls.isbn.invalid"
-            [attr.aria-describedby]="
-              form.controls.isbn.touched && form.controls.isbn.invalid ? 'book-isbn-error' : null
-            "
+            [formField]="form.isbn"
+            [attr.aria-invalid]="form.isbn().touched() && form.isbn().invalid()"
+            [attr.aria-describedby]="form.isbn().touched() && form.isbn().invalid() ? 'book-isbn-error' : null"
             class="w-full min-w-0 rounded border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 p-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 dark:focus-visible:outline-blue-300"
           />
-          @if (form.controls.isbn.touched && form.controls.isbn.invalid) {
+          @if (form.isbn().touched() && form.isbn().invalid()) {
             <p id="book-isbn-error" class="mt-2 text-red-700 dark:text-red-300">
               ISBN is required and must contain text.
             </p>
@@ -38,17 +35,14 @@
           <input
             [id]="'book-' + field.key"
             type="text"
-            [formControlName]="field.key"
-            [required]="field.required"
-            [attr.aria-invalid]="form.controls[field.key].touched && form.controls[field.key].invalid"
+            [formField]="form[field.key]"
+            [attr.aria-invalid]="form[field.key]().touched() && form[field.key]().invalid()"
             [attr.aria-describedby]="
-              form.controls[field.key].touched && form.controls[field.key].invalid
-                ? 'book-' + field.key + '-error'
-                : null
+              form[field.key]().touched() && form[field.key]().invalid() ? 'book-' + field.key + '-error' : null
             "
             class="w-full min-w-0 rounded border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 p-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 dark:focus-visible:outline-blue-300"
           />
-          @if (form.controls[field.key].touched && form.controls[field.key].invalid) {
+          @if (form[field.key]().touched() && form[field.key]().invalid()) {
             <p [id]="'book-' + field.key + '-error'" class="mt-2 text-red-700 dark:text-red-300">
               {{ field.label }} is required and must contain text.
             </p>
@@ -60,17 +54,13 @@
         <input
           id="book-pages"
           type="number"
-          formControlName="numPages"
-          required
-          min="0"
+          [formField]="form.numPages"
           step="1"
-          [attr.aria-invalid]="form.controls.numPages.touched && form.controls.numPages.invalid"
-          [attr.aria-describedby]="
-            form.controls.numPages.touched && form.controls.numPages.invalid ? 'book-pages-error' : null
-          "
+          [attr.aria-invalid]="form.numPages().touched() && form.numPages().invalid()"
+          [attr.aria-describedby]="form.numPages().touched() && form.numPages().invalid() ? 'book-pages-error' : null"
           class="w-full min-w-0 rounded border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 p-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 dark:focus-visible:outline-blue-300"
         />
-        @if (form.controls.numPages.touched && form.controls.numPages.invalid) {
+        @if (form.numPages().touched() && form.numPages().invalid()) {
           <p id="book-pages-error" class="mt-2 text-red-700 dark:text-red-300">
             Pages are required and must be a whole number of zero or more.
           </p>
@@ -81,16 +71,13 @@
         <input
           id="book-price"
           type="number"
-          formControlName="price"
-          min="0"
+          [formField]="form.price"
           step="any"
-          [attr.aria-invalid]="form.controls.price.touched && form.controls.price.invalid"
-          [attr.aria-describedby]="
-            form.controls.price.touched && form.controls.price.invalid ? 'book-price-error' : null
-          "
+          [attr.aria-invalid]="form.price().touched() && form.price().invalid()"
+          [attr.aria-describedby]="form.price().touched() && form.price().invalid() ? 'book-price-error' : null"
           class="w-full min-w-0 rounded border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 p-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 dark:focus-visible:outline-blue-300"
         />
-        @if (form.controls.price.touched && form.controls.price.invalid) {
+        @if (form.price().touched() && form.price().invalid()) {
           <p id="book-price-error" class="mt-2 text-red-700 dark:text-red-300">Price must be zero or more.</p>
         }
       </div>
@@ -98,7 +85,7 @@
         <label for="book-abstract" class="block font-semibold mb-2">Description</label>
         <textarea
           id="book-abstract"
-          formControlName="abstract"
+          [formField]="form.abstract"
           rows="6"
           class="w-full min-w-0 rounded border border-gray-400 dark:border-gray-500 bg-white dark:bg-gray-800 p-3 focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-blue-700 dark:focus-visible:outline-blue-300"
         ></textarea>

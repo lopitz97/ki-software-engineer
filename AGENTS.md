@@ -11,7 +11,7 @@ Before changing the application, read [README.md](README.md) for setup and [ARCH
 
 ## Architecture and change scope
 
-- This is BookMonkey, a single Angular 20 standalone browser application for an Angular workshop. The Bookmonkey API runs separately and is not implemented here.
+- This is BookMonkey, a single Angular 21 standalone browser application for an Angular workshop. The Bookmonkey API runs separately and is not implemented here.
 - Keep the root `App` focused on the persistent layout and router outlet. Put routes in `src/app/app.routes.ts` and application-wide providers in `src/app/app.config.ts`. Keep the wildcard route last.
 - Group domain-specific components, models, and services by feature. Use `src/app/shared/` for functionality actually reused across features; keep book-specific behavior in `books/`.
 - Use standalone components with explicit template dependencies. Preserve strict TypeScript and Angular template checks; do not weaken compiler settings to bypass an error.

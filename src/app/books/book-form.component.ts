@@ -1,49 +1,69 @@
-import { ChangeDetectionStrategy, Component, inject, input, OnInit, output } from '@angular/core';
-import { FormControl, NonNullableFormBuilder, ReactiveFormsModule, Validators } from '@angular/forms';
+import { ChangeDetectionStrategy, Component, input, OnInit, output, signal } from '@angular/core';
+import { disabled, form, FormField, FormRoot, min, pattern, required, validate } from '@angular/forms/signals';
 import { Book } from './book';
 import { BookDraft } from './book-draft';
 
 @Component({
   selector: 'app-book-form',
   changeDetection: ChangeDetectionStrategy.OnPush,
-  imports: [ReactiveFormsModule],
+  imports: [FormField, FormRoot],
   templateUrl: './book-form.component.html'
 })
 export class BookFormComponent implements OnInit {
-  private readonly fb = inject(NonNullableFormBuilder);
-
   readonly initialBook = input<Book>();
   readonly saving = input(false);
   readonly error = input<string | null>(null);
   readonly submitted = output<BookDraft>();
   readonly cancelled = output<void>();
   readonly textFields = [
-    { key: 'title', label: 'Title', required: true },
-    { key: 'subtitle', label: 'Subtitle', required: false },
-    { key: 'author', label: 'Author', required: true },
-    { key: 'publisher', label: 'Publisher', required: false },
-    { key: 'cover', label: 'Cover URL', required: false }
+    { key: 'title', label: 'Title' },
+    { key: 'subtitle', label: 'Subtitle' },
+    { key: 'author', label: 'Author' },
+    { key: 'publisher', label: 'Publisher' },
+    { key: 'cover', label: 'Cover URL' }
   ] as const;
-  readonly form = this.fb.group({
-    isbn: ['', [Validators.required, Validators.pattern(/\S/)]],
-    title: ['', [Validators.required, Validators.pattern(/\S/)]],
+  private readonly model = signal({
+    isbn: '',
+    title: '',
     subtitle: '',
-    author: ['', [Validators.required, Validators.pattern(/\S/)]],
+    author: '',
     publisher: '',
     cover: '',
     abstract: '',
-    numPages: new FormControl<number | null>(null, [
-      Validators.required,
-      Validators.min(0),
-      Validators.pattern(/^\d+$/)
-    ]),
-    price: new FormControl<number | null>(null, Validators.min(0))
+    numPages: null as number | null,
+    price: null as number | null
   });
+  readonly form = form(
+    this.model,
+    path => {
+      disabled(path, () => this.saving());
+      for (const field of [path.isbn, path.title, path.author]) {
+        required(field);
+        pattern(field, /\S/);
+      }
+      required(path.numPages);
+      min(path.numPages, 0);
+      validate(path.numPages, ({ value }) =>
+        value() === null || Number.isInteger(value()) ? null : { kind: 'integer' }
+      );
+      min(path.price, 0);
+    },
+    {
+      submission: {
+        action: async () => {
+          if (this.saving()) return;
+          const values = this.model();
+          if (values.numPages === null) return;
+          this.submitted.emit({ ...values, numPages: values.numPages, price: values.price ?? undefined });
+        }
+      }
+    }
+  );
 
   ngOnInit(): void {
     const book = this.initialBook();
     if (!book) return;
-    this.form.reset({
+    this.model.set({
       isbn: book.isbn,
       title: book.title,
       subtitle: book.subtitle ?? '',
@@ -54,14 +74,5 @@ export class BookFormComponent implements OnInit {
       numPages: book.numPages ?? null,
       price: book.price === '' || book.price == null ? null : Number(book.price)
     });
-  }
-
-  submit(): void {
-    if (this.saving()) return;
-    this.form.markAllAsTouched();
-    if (this.form.invalid) return;
-    const values = this.form.getRawValue();
-    if (values.numPages === null) return;
-    this.submitted.emit({ ...values, numPages: values.numPages, price: values.price ?? undefined });
   }
 }
